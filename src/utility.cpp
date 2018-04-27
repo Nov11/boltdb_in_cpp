@@ -33,21 +33,43 @@ int file_Unlock(int fd) {
 }
 
 int mmap_db_file(Database *database, size_t sz) {
-  void *ret = mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->FD(), 0);
+  void *ret = ::mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->FD(), 0);
   if (ret == MAP_FAILED) {
     perror("mmap");
     return -1;
   }
 
-  int retAdvise = madvise(ret, sz, MADV_RANDOM);
+  int retAdvise = ::madvise(ret, sz, MADV_RANDOM);
   if (retAdvise == -1) {
     perror("madvise");
     return -1;
   }
 
-
-  database->
+  database->setData(ret);
+  database->setDataRef(ret);
+  database->setDataSize(sz);
 }
 
+int munmap_db_file(Database *database, size_t sz) {
+  if (database->getData() == nullptr) {
+    return 0;
+  }
+  int ret = ::munmap(database->getData(), database->getDataSize());
+  if (ret == -1) {
+    perror("munmap");
+    return ret;
+  }
+
+  database->resetData();
+  return 0;
+}
+
+int file_data_sync(int fd) {
+  int ret = fdatasync(fd);
+  if (ret != 0) {
+    perror("fdatasync");
+  }
+  return ret;
+}
 }
 

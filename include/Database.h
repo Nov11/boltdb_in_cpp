@@ -6,8 +6,14 @@
 #define BOLTDB_IN_CPP_DATABASE_H
 
 #include <mutex>
+#include <vector>
+#include <stack>
+#include <cassert>
+#include <iostream>
+#include <string>
 #include "bucket.h"
 #include "rwlock.h"
+#include "Transaction.h"
 
 namespace boltDB_CPP {
 
@@ -34,7 +40,6 @@ const int DEFAULTMAXBATCHDELAYMILLIIONSEC = 10;
 const int DEFAULTALLOCATIONSIZE = 16 * 1024 * 1024;
 const int DEFAULTPAGESIZE = 4096;// this value is returned by `getconf PAGE_SIZE` on ubuntu 17.10 x86_64
 
-
 struct MetaData {
   uint32_t magic;
   uint32_t version;
@@ -53,7 +58,6 @@ struct FreeList {
   std::map<page_id, bool> cache;//all free & pending page_ids
 };
 
-class TransactionStats;
 struct Stat {
   //about free list
   uint64_t freePageNumber = 0;
@@ -66,7 +70,7 @@ struct Stat {
   //txn stat
   uint64_t txnNumber = 0;
   uint64_t opened_txnNumber = 0;
-  TransactionStats *txStat;
+  TxStat *txStat;
 };
 
 class Database;
@@ -78,7 +82,6 @@ class Batch {
   //a function list
 };
 
-class Transaction;
 class Database {
   bool strictMode = false;
   bool noSync = false;
@@ -90,12 +93,12 @@ class Database {
 
   std::string path;
   int fd = -1;
-  void* dataref;//readonly
+  void *dataref;//readonly
   char(*data)[MAXMAPSIZE];//data is a pointer to block of memory if sizeof MAXMAPSIZE
-  uint64_t fileSize;
+  uint64_t dataSize;
   MetaData *meta0;
   MetaData *meta1;
-  uint64_t pageSize;
+  uint64_t pageSize = 0;
   bool opened;
   Transaction *rwtx;
   std::vector<Transaction *> txs;
@@ -116,62 +119,169 @@ class Database {
   int FD() const {
     return fd;
   }
-  void setDataRef(void* dataref_p){
+
+  void *getDataRef() const {
+    return dataref;
+  }
+  void setDataRef(void *dataref_p) {
     dataref = dataref_p;
+  }
+
+  void setData(void *data_p) {
+    data = reinterpret_cast<char (*)[MAXMAPSIZE]> (data_p);
+  }
+
+  void *getData() const {
+    return data;
+  }
+
+  void setDataSize(uint64_t sz_p) {
+    dataSize = sz_p;
+  }
+
+  uint64_t getDataSize() const {
+    return dataSize;
+  }
+
+  void resetData() {
+    dataSize = 0;
+    data = nullptr;
+    dataref = nullptr;
+  }
+
+  Page *getPage(page_id pageId);
+};
+
+struct BranchPageElement {
+  uint32_t pos = 0;
+  uint32_t ksize = 0;
+  page_id pageId = 0;
+
+  std::string Key() const {
+    auto ptr = reinterpret_cast<const char *>(this);
+    return std::string(&ptr[pos], &ptr[pos + ksize]);
   }
 };
 
-class Page {
+struct LeafPageElement {
+  uint32_t flag = 0;
+  uint32_t pos = 0;
+  uint32_t ksize = 0;
+  uint32_t vsize = 0;
 
+  std::string read(uint32_t p, uint32_t s) const {
+    const char *ptr = reinterpret_cast<const char *>(this);
+    return std::string(&ptr[p], &ptr[p + s]);
+  }
+
+  std::string Key() const {
+    return read(pos, ksize);
+  }
+
+  std::string Value() const {
+    return read(pos + ksize, vsize);
+  }
 };
 
-struct TxStat {
-  uint64_t pageCount = 0;
-  uint64_t pageAlloc = 0;//in bytes
+struct Page {
+  page_id pageId;
+  uint16_t flag;
+  uint16_t count;
+  uint32_t overflow;
+  uintptr_t ptr;
 
-  uint64_t cursorCount = 0;
+  LeafPageElement *getLeafPageElement(uint64_t index) const {
+    assert(ptr);
+    const auto *list = reinterpret_cast<const LeafPageElement *>(ptr);
+    return const_cast<LeafPageElement *> (&list[index]);
+  }
 
-  uint64_t nodeCount = 0;
-  uint64_t nodeDereferenceCount = 0;
+  BranchPageElement *getBranchPageElement(uint64_t index) const {
+    assert(ptr);
+    const auto *list = reinterpret_cast<const BranchPageElement *>(ptr);
+    return const_cast<BranchPageElement *> (&list[index]);
+  }
 
-  uint64_t rebalanceCount = 0;
-  uint64_t rebalanceTime = 0;
-
-  uint64_t splitCount = 0;
-  uint64_t spillCount = 0;
-  uint64_t spillTime = 0;
-
-  uint64_t writeCount = 0;
-  uint64_t writeTime = 0;
+  page_id getPageId() const {
+    return pageId;
+  }
+  void setPageId(page_id pageId) {
+    Page::pageId = pageId;
+  }
+  uint16_t getFlag() const {
+    return flag;
+  }
+  void setFlag(uint16_t flags) {
+    Page::flag = flags;
+  }
+  uint16_t getCount() const {
+    return count;
+  }
+  void setCount(uint16_t count) {
+    Page::count = count;
+  }
+  uint32_t getOverflow() const {
+    return overflow;
+  }
+  void setOverflow(uint32_t overflow) {
+    Page::overflow = overflow;
+  }
+  uintptr_t getPtr() const {
+    return ptr;
+  }
+  void setPtr(uintptr_t ptr) {
+    Page::ptr = ptr;
+  }
 };
 
-class Inode {
+//this is a pointer to element. The element can be in a page or not added to a page yet.
+//1.points to an element in a page
+//2.points to an element not yet in a page
+struct Inode {
   uint32_t flag = 0;
   page_id pageId = 0;
   std::string key;
   std::string value;
+  std::string Key() const {
+    return key;
+  }
+  std::string Value() const {
+    return value;
+  }
 };
 
-struct InodeList {
-  std::vector<Inode *> list;
-};
+typedef std::vector<Inode *> InodeList;
+//struct InodeList {
+//  std::vector<Inode *> list;
+//};
 
 class Node;
 
-struct NodeList {
-  std::vector<Node *> list;
-};
+typedef std::vector<Node *> NodeList;
+//struct NodeList {
+//  std::vector<Node *> list;
+//};
 
+//this is a in-memory deserialized page
 struct Node {
   Bucket *bucket = nullptr;
   bool isLeaf = false;
   bool unbalanced = false;
   bool spilled = false;
   std::string key;
-  page_id pageId;
-  Node *parentNode;
+  page_id pageId = 0;
+  Node *parentNode = nullptr;
   NodeList children;
   InodeList inodeList;
+};
+
+// transverse all kv pairs in a bucket in sorted order
+//valid only if related txn is valid
+enum class PageFlag : uint16_t {
+  branchPageFlag = 0x01,
+  leafPageFlag = 0x02,
+  metaPageFlag = 0x04,
+  freelistPageFlag = 0x10,
 };
 
 }

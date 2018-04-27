@@ -6,6 +6,7 @@
 #define BOLTDB_IN_CPP_RWLOCK_H
 #include <condition_variable>
 #include <climits>
+
 namespace boltDB_CPP {
 class RWLock {
   bool write_entered;
@@ -55,4 +56,5 @@ class RWLock {
   }
 };
 }
+
 #endif //BOLTDB_IN_CPP_RWLOCK_H
