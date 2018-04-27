@@ -17,7 +17,7 @@ class Bucket;
 struct ElementRef {
   Page *page = nullptr;
   Node *node = nullptr;
-  uint64_t index = 0;//what does this indicate? no known yet
+  uint64_t index = 0;//DO NOT change this default ctor build up a ref to the first element in a page
   //is this a leaf page/node
   bool isLeaf() const;
 
@@ -47,10 +47,21 @@ struct Cursor {
   //weird function signature
   //return kv of the search Key if searchkey exists
   //or return the next Key
-  void seek(std::string searchKey, std::string& key, std::string& value, uint32_t &flag);
+  void do_seek(std::string searchKey, std::string &key, std::string &value, uint32_t &flag);
+  void seek(const std::string &searchKey, std::string &key, std::string &value, uint32_t &flag);
 
   //return the node the cursor is currently on
   Node* getNode()const;
+
+  void do_next(std::string& key, std::string& value, uint32_t &flag);
+
+  void do_first();
+  void do_last();
+  int remove();
+  void prev(std::string& key, std::string& value);
+  void next(std::string& key, std::string& value);
+  void last(std::string& key, std::string& value);
+  void first(std::string& key, std::string& value);
 };
 
 }

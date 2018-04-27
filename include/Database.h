@@ -234,52 +234,14 @@ struct Page {
   }
 };
 
-//this is a pointer to element. The element can be in a page or not added to a page yet.
-//1.points to an element in a page
-//2.points to an element not yet in a page
-struct Inode {
-  uint32_t flag = 0;
-  page_id pageId = 0;
-  std::string key;
-  std::string value;
-  std::string Key() const {
-    return key;
-  }
-  std::string Value() const {
-    return value;
-  }
-};
-
-typedef std::vector<Inode *> InodeList;
-//struct InodeList {
-//  std::vector<Inode *> list;
-//};
-
 class Node;
-
-typedef std::vector<Node *> NodeList;
-//struct NodeList {
-//  std::vector<Node *> list;
-//};
-
-//this is a in-memory deserialized page
-struct Node {
-  Bucket *bucket = nullptr;
-  bool isLeaf = false;
-  bool unbalanced = false;
-  bool spilled = false;
-  std::string key;
-  page_id pageId = 0;
-  Node *parentNode = nullptr;
-  NodeList children;
-  InodeList inodeList;
-};
 
 // transverse all kv pairs in a bucket in sorted order
 //valid only if related txn is valid
 enum class PageFlag : uint16_t {
   branchPageFlag = 0x01,
   leafPageFlag = 0x02,
+  bucketLeafFlag = 0x02,
   metaPageFlag = 0x04,
   freelistPageFlag = 0x10,
 };

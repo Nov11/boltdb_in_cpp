@@ -13,5 +13,5 @@ set(SRC
         src/Transaction.cpp
         include/Transaction.h
         include/Database.h
-        include/rwlock.h src/Database.cpp src/Cursor.cpp include/Cursor.h)
+        include/rwlock.h src/Database.cpp src/Cursor.cpp include/Cursor.h src/Node.cpp include/Node.h)
 add_library(boltDB_in_cpp ${SRC})

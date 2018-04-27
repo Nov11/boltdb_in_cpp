@@ -33,6 +33,20 @@ size_t binary_search(T &target, V &key, CMP cmp, size_t e_p, bool &found) {
   }
   return b;
 };
+
+template<class T>
+int cmp_wrapper(T &t, const std::string &p) {
+  if (t.Key() < p) {
+    return -1;
+  }
+  if (t.Key() == p) {
+    return 0;
+  }
+  return -1;
+}
+
+
+
 }
 
 #endif //BOLTDB_IN_CPP_UTILITY_H

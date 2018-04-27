@@ -55,6 +55,8 @@ class Bucket {
   }
 
   void getPageNode(page_id pageId, Node*& node, Page* &page);
+
+  Node* getNode(page_id pageId, Node* parent);
 };
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::bucketInFile);
 }

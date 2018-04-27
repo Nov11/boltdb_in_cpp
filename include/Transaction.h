@@ -36,7 +36,7 @@ struct TxStat {
   uint64_t writeTime = 0;
 };
 
-class Transaction {
+struct Transaction {
   bool writable = false;
   bool managed = false;
   Database *db = nullptr;
@@ -54,8 +54,11 @@ class Transaction {
   void increaseCurserCount() {
     stats.cursorCount++;
   }
+  void increaseNodeCount() {
+    stats.nodeCount++;
+  }
 
-  Page* getPage(page_id pageId);
+  Page *getPage(page_id pageId);
 };
 
 }
