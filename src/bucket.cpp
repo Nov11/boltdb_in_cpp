@@ -1,7 +1,8 @@
 //
 // Created by c6s on 18-4-26.
 //
-
+#include <cstring>
+#include "Database.h"
 #include "bucket.h"
 #include "Cursor.h"
 #include "Node.h"
@@ -73,6 +74,41 @@ Node *Bucket::getNode(page_id pageId, Node *parent) {
   tx->increaseNodeCount();
 
   return node;
+}
+Bucket *Bucket::getBucketByName(const Item &searchKey) {
+  auto iter = buckets.find(searchKey);
+  if (iter != buckets.end()) {
+    return iter->second;
+  }
+
+  auto cursor = createCursor();
+  Item key;
+  Item value;
+  uint32_t flag = 0;
+  cursor->seek(searchKey, key, value, flag);
+  if (searchKey != key || (flag & static_cast<uint32_t >(PageFlag::bucketLeafFlag)) == 0) {
+    return nullptr;
+  }
+
+  openBucket(value);
+}
+Bucket *Bucket::createBucket(const Item &key) {
+
+}
+Bucket *Bucket::openBucket(const Item &value) {
+  auto child = newBucket(tx);
+
+  //this may result in un-equivalent to the original purpose
+  //in boltDB, it saves the pointer to mmapped file.
+  //it's reinterpreting value on read-only txn, make a copy in writable one
+  //here I don't make 'value' a pointer.
+  //reimplementation is needed if value is shared among read txns
+  // and update in mmap file is reflected through 'bucket' field
+//  std::memcpy(&child->bucketInFile1, value.c_str(), sizeof(child->bucketInFile1));
+//  if (child->bucketInFile1.root == 0) {
+//    child->page =
+//  }
+  return nullptr;
 }
 
 }

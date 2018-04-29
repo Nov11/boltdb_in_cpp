@@ -28,7 +28,7 @@ size_t ElementRef::count() const {
   return page->count;
 }
 
-void Cursor::keyValue(std::string &key, std::string &value, uint32_t &flag) {
+void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   assert(!stk.empty());
   auto ref = stk.top();
   if (ref.count() == 0 || ref.index >= ref.count()) {
@@ -39,8 +39,8 @@ void Cursor::keyValue(std::string &key, std::string &value, uint32_t &flag) {
   //are those values sitting a node?
   if (ref.node) {
     auto inode = ref.node->inodeList[ref.index];
-    key = inode->key;
-    value = inode->value;
+    key = inode->Key();
+    value = inode->Value();
     flag = inode->flag;
     return;
   }
@@ -53,7 +53,7 @@ void Cursor::keyValue(std::string &key, std::string &value, uint32_t &flag) {
   return;
 }
 
-void Cursor::search(const std::string &key, page_id pageId) {
+void Cursor::search(const Item &key, page_id pageId) {
   Node *node = nullptr;
   Page *page = nullptr;
   bucket->getPageNode(pageId, node, page);
@@ -75,7 +75,7 @@ void Cursor::search(const std::string &key, page_id pageId) {
   searchBranchPage(key, page);
 }
 
-void Cursor::searchLeaf(const std::string &key) {
+void Cursor::searchLeaf(const Item &key) {
   assert(!stk.empty());
   ElementRef &ref = stk.top();
 
@@ -101,7 +101,7 @@ void Cursor::searchLeaf(const std::string &key) {
                                                    found
   ));
 }
-void Cursor::searchBranchNode(const std::string &key, Node *node) {
+void Cursor::searchBranchNode(const Item &key, Node *node) {
   bool found = false;
   auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode *>, node->inodeList.size(), found);
   if (!found && index > 0) {
@@ -111,7 +111,7 @@ void Cursor::searchBranchNode(const std::string &key, Node *node) {
   stk.top().index = index;
   search(key, node->inodeList[index]->pageId);
 }
-void Cursor::searchBranchPage(const std::string &key, Page *page) {
+void Cursor::searchBranchPage(const Item &key, Page *page) {
   auto branchElements = page->getBranchPageElement(0);
   bool found = false;
   auto index = binary_search(branchElements, key, cmp_wrapper<BranchPageElement>, page->count, found);
@@ -122,7 +122,7 @@ void Cursor::searchBranchPage(const std::string &key, Page *page) {
   stk.top().index = index;
   search(key, branchElements[index].pageId);
 }
-void Cursor::do_seek(std::string searchKey, std::string &key, std::string &value, uint32_t &flag) {
+void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
   {
     decltype(stk) tmp;
     swap(stk, tmp);
@@ -131,13 +131,12 @@ void Cursor::do_seek(std::string searchKey, std::string &key, std::string &value
 
   auto &ref = stk.top();
   if (ref.index >= ref.count()) {
-    key.clear();
-    value.clear();
+    key.reset();
+    value.reset();
     flag = 0;
     return;
   }
   keyValue(key, value, flag);
-  return;
 }
 
 /**
@@ -171,7 +170,7 @@ Node *Cursor::getNode() const {
   assert(node->isLeaf);
   return node;
 }
-void Cursor::do_next(std::string &key, std::string &value, uint32_t &flag) {
+void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   while (true) {
     while (!stk.empty()) {
       auto &ref = stk.top();
@@ -184,8 +183,8 @@ void Cursor::do_next(std::string &key, std::string &value, uint32_t &flag) {
     }
 
     if (stk.empty()) {
-      key.clear();
-      value.clear();
+      key.reset();
+      value.reset();
       flag = 0;
       return;
     }
@@ -257,8 +256,8 @@ int Cursor::remove() {
     return -1;
   }
 
-  std::string key;
-  std::string value;
+  Item key;
+  Item value;
   uint32_t flag;
   keyValue(key, value, flag);
 
@@ -270,9 +269,9 @@ int Cursor::remove() {
   getNode()->do_remove(key);
   return 0;
 }
-void Cursor::seek(const std::string &searchKey, std::string &key, std::string &value, uint32_t &flag) {
-  key.clear();
-  value.clear();
+void Cursor::seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag) {
+  key.reset();
+  value.reset();
   flag = 0;
   do_seek(searchKey, key, value, flag);
   auto &ref = stk.top();
@@ -280,9 +279,9 @@ void Cursor::seek(const std::string &searchKey, std::string &key, std::string &v
     do_next(key, value, flag);
   }
 }
-void Cursor::prev(std::string &key, std::string &value) {
-  key.clear();
-  value.clear();
+void Cursor::prev(Item &key, Item &value) {
+  key.reset();
+  value.reset();
   while (!stk.empty()) {
     auto &ref = stk.top();
     if (ref.index > 0) {
@@ -302,15 +301,15 @@ void Cursor::prev(std::string &key, std::string &value) {
   //I think there's no need to clear value if current node is a branch node
 
 }
-void Cursor::next(std::string &key, std::string &value) {
-  key.clear();
-  value.clear();
+void Cursor::next(Item &key, Item &value) {
+  key.reset();
+  value.reset();
   uint32_t flag = 0;
   do_next(key, value, flag);
 }
-void Cursor::last(std::string &key, std::string &value) {
-  key.clear();
-  value.clear();
+void Cursor::last(Item &key, Item &value) {
+  key.reset();
+  value.reset();
   {
     decltype(stk) tmp;
     swap(stk, tmp);
@@ -325,9 +324,9 @@ void Cursor::last(std::string &key, std::string &value) {
   uint32_t flag = 0;
   keyValue(key, value, flag);
 }
-void Cursor::first(std::string &key, std::string &value) {
-  key.clear();
-  value.clear();
+void Cursor::first(Item &key, Item &value) {
+  key.reset();
+  value.reset();
   {
     decltype(stk) tmp;
     swap(stk, tmp);

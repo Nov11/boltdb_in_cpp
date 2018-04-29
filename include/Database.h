@@ -157,9 +157,10 @@ struct BranchPageElement {
   uint32_t ksize = 0;
   page_id pageId = 0;
 
-  std::string Key() const {
+  Item Key() const {
     auto ptr = reinterpret_cast<const char *>(this);
-    return std::string(&ptr[pos], &ptr[pos + ksize]);
+//    return std::string(&ptr[pos], &ptr[pos + ksize]);
+    return {&ptr[pos], ksize};
   }
 };
 
@@ -169,16 +170,17 @@ struct LeafPageElement {
   uint32_t ksize = 0;
   uint32_t vsize = 0;
 
-  std::string read(uint32_t p, uint32_t s) const {
-    const char *ptr = reinterpret_cast<const char *>(this);
-    return std::string(&ptr[p], &ptr[p + s]);
+  Item read(uint32_t p, uint32_t s) const {
+    const auto *ptr = reinterpret_cast<const char *>(this);
+//    return std::string(&ptr[p], &ptr[p + s]);
+    return {&ptr[p], s};
   }
 
-  std::string Key() const {
+  Item Key() const {
     return read(pos, ksize);
   }
 
-  std::string Value() const {
+  Item Value() const {
     return read(pos + ksize, vsize);
   }
 };
@@ -233,8 +235,6 @@ struct Page {
     Page::ptr = ptr;
   }
 };
-
-class Node;
 
 // transverse all kv pairs in a bucket in sorted order
 //valid only if related txn is valid

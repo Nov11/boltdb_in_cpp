@@ -24,14 +24,14 @@ void Node::read(boltDB_CPP::Page *page) {
       item->pageId = element->pageId;
       item->key = element->Key();
     }
-    assert(!item->Key().empty());
+    assert(item->Key().length != 0);
   }
 
   if (!inodeList.empty()) {
     key = inodeList.front()->Key();
     assert(!key.empty());
   } else {
-    key.clear();
+    key.reset();
   }
 }
 Node *Node::childAt(uint64_t index) {
@@ -40,7 +40,7 @@ Node *Node::childAt(uint64_t index) {
   }
   return bucket->getNode(inodeList[index]->pageId, this);
 }
-void Node::do_remove(const std::string &key) {
+void Node::do_remove(const Item &key) {
   bool found = false;
   size_t index = binary_search(inodeList, key, cmp_wrapper<Inode *>, inodeList.size(), found);
   if (!found) {

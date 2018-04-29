@@ -37,31 +37,31 @@ struct Cursor {
   Bucket *getBucket() const {
     return bucket;
   }
-  void search(const std::string &key, page_id pageId);
+  void search(const Item &key, page_id pageId);
   //search leaf node (which is on the top of the stack) for a Key
-  void searchLeaf(const std::string &key);
-  void searchBranchNode(const std::string &key, Node *node);
-  void searchBranchPage(const std::string &key, Page *page);
-  void keyValue(std::string &key, std::string &value, uint32_t &flag);
+  void searchLeaf(const Item &key);
+  void searchBranchNode(const Item &key, Node *node);
+  void searchBranchPage(const Item &key, Page *page);
+  void keyValue(Item &key, Item &value, uint32_t &flag);
 
   //weird function signature
   //return kv of the search Key if searchkey exists
   //or return the next Key
-  void do_seek(std::string searchKey, std::string &key, std::string &value, uint32_t &flag);
-  void seek(const std::string &searchKey, std::string &key, std::string &value, uint32_t &flag);
+  void do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag);
+  void seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag);
 
   //return the node the cursor is currently on
-  Node* getNode()const;
+  Node *getNode() const;
 
-  void do_next(std::string& key, std::string& value, uint32_t &flag);
+  void do_next(Item &key, Item &value, uint32_t &flag);
 
   void do_first();
   void do_last();
   int remove();
-  void prev(std::string& key, std::string& value);
-  void next(std::string& key, std::string& value);
-  void last(std::string& key, std::string& value);
-  void first(std::string& key, std::string& value);
+  void prev(Item &key, Item &value);
+  void next(Item &key, Item &value);
+  void last(Item &key, Item &value);
+  void first(Item &key, Item &value);
 };
 
 }

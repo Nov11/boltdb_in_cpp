@@ -23,7 +23,7 @@ class Cursor;
 class Bucket {
   bucketInFile bucketInFile1;
   Transaction *tx = nullptr;
-  std::unordered_map<std::string, Bucket *> buckets;//subbucket cache. used if txn is writable
+  std::unordered_map<Item, Bucket *> buckets;//subbucket cache. used if txn is writable
   Page *page = nullptr;
   Node *rootNode = nullptr;
   std::unordered_map<page_id, Node *> nodes;//node cache. used if txn is writable
@@ -40,23 +40,14 @@ class Bucket {
   bool isWritable() const {
     return tx->isWritable();
   }
+
   Cursor *createCursor();
-  Bucket *getBucketByName(const std::string &bucketName) {
-    auto iter = buckets.find(bucketName);
-    if (iter != buckets.end()) {
-      return iter->second;
-    }
+  Bucket *getBucketByName(const Item &searchKey);
+  Bucket *openBucket(const Item& value);
+  Bucket *createBucket(const Item &key);
 
-    auto cursor = createCursor();
-
-  }
-  Bucket *createBucket(const std::string &key) {
-
-  }
-
-  void getPageNode(page_id pageId, Node*& node, Page* &page);
-
-  Node* getNode(page_id pageId, Node* parent);
+  void getPageNode(page_id pageId, Node *&node, Page *&page);
+  Node *getNode(page_id pageId, Node *parent);
 };
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::bucketInFile);
 }

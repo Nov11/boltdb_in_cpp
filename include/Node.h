@@ -18,12 +18,12 @@ typedef std::vector<Node *> NodeList;
 struct Inode {
   uint32_t flag = 0;
   page_id pageId = 0;
-  std::string key;
-  std::string value;
-  std::string Key() const {
+  Item key;
+  Item value;
+  Item Key() const {
     return key;
   }
-  std::string Value() const {
+  Item Value() const {
     return value;
   }
 };
@@ -38,7 +38,7 @@ struct Node {
   bool isLeaf = false;
   bool unbalanced = false;
   bool spilled = false;
-  std::string key;
+  Item key;
   page_id pageId = 0;
   Node *parentNode = nullptr;
   NodeList children;
@@ -46,11 +46,11 @@ struct Node {
 
   void read(Page *page);
   Node *childAt(uint64_t index);
-  void do_remove(const std::string &key);
+  void do_remove(const Item &key);
 };
 
 template<>
-int cmp_wrapper<Inode *>(Inode *&t, const std::string &p) {
+int cmp_wrapper<Inode *>(Inode *&t, const Item &p) {
   if (t->Key() < p) {
     return -1;
   }
