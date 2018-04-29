@@ -45,6 +45,11 @@ int cmp_wrapper(T &t, const Item &p) {
   return -1;
 }
 
+template<typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args&&... args)
+{
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 }
 
 #endif //BOLTDB_IN_CPP_UTILITY_H

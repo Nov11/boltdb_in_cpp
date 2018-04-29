@@ -10,7 +10,7 @@
 #include "utility.h"
 namespace boltDB_CPP {
 class Node;
-typedef std::vector<Node *> NodeList;
+typedef std::vector<std::shared_ptr<Node>> NodeList;
 
 //this is a pointer to element. The element can be in a page or not added to a page yet.
 //1.points to an element in a page
@@ -33,7 +33,7 @@ typedef std::vector<Inode *> InodeList;
 class Page;
 class Bucket;
 //this is a in-memory deserialized page
-struct Node {
+struct Node : std::enable_shared_from_this<Node> {
   Bucket *bucket = nullptr;
   bool isLeaf = false;
   bool unbalanced = false;
@@ -45,7 +45,7 @@ struct Node {
   InodeList inodeList;
 
   void read(Page *page);
-  Node *childAt(uint64_t index);
+  std::shared_ptr<Node>childAt(uint64_t index);
   void do_remove(const Item &key);
 };
 

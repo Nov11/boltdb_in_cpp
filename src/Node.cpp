@@ -34,11 +34,11 @@ void Node::read(boltDB_CPP::Page *page) {
     key.reset();
   }
 }
-Node *Node::childAt(uint64_t index) {
+std::shared_ptr<Node> Node::childAt(uint64_t index) {
   if (isLeaf) {
     assert(false);
   }
-  return bucket->getNode(inodeList[index]->pageId, this);
+  return bucket->getNode(inodeList[index]->pageId, shared_from_this());
 }
 void Node::do_remove(const Item &key) {
   bool found = false;

@@ -1,6 +1,7 @@
 //
 // Created by c6s on 18-4-26.
 //
+#include <memory>
 #include <cstring>
 #include "Database.h"
 #include "bucket.h"
@@ -9,20 +10,22 @@
 
 namespace boltDB_CPP {
 
-Bucket *Bucket::newBucket(Transaction *tx_p) {
-  auto *bucket = new Bucket;
+std::shared_ptr<Bucket> Bucket::newBucket(Transaction *tx_p) {
+  auto bucket = std::make_shared<Bucket>();
   bucket->tx = tx_p;
-  return nullptr;
+  return bucket;
 }
 
 Cursor *Bucket::createCursor() {
   tx->increaseCurserCount();
   return new Cursor(this);
 }
-void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
+void Bucket::getPageNode(page_id pageId_p, std::shared_ptr<Node> &node_p, Page *&page_p) {
+  assert(bucketPointer);
   node_p = nullptr;
   page_p = nullptr;
-  if (bucketInFile1.root == 0) {
+
+  if (bucketPointer->root == 0) {
     if (pageId_p) {
       assert(false);
     }
@@ -46,16 +49,16 @@ void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
 }
 
 //create a node from a page and associate it with a given parent
-Node *Bucket::getNode(page_id pageId, Node *parent) {
+std::shared_ptr<Node> Bucket::getNode(page_id pageId, std::shared_ptr<Node> parent) {
   auto iter = nodes.find(pageId);
   if (iter != nodes.end()) {
     return iter->second;
   }
 
-  Node *node = new Node;
+  auto node = std::make_shared<Node>();
 
   node->bucket = this;
-  node->parentNode = parent;
+  node->parentNode = parent.get();
 
   if (parent == nullptr) {
     rootNode = node;
@@ -75,7 +78,7 @@ Node *Bucket::getNode(page_id pageId, Node *parent) {
 
   return node;
 }
-Bucket *Bucket::getBucketByName(const Item &searchKey) {
+std::shared_ptr<Bucket> Bucket::getBucketByName(const Item &searchKey) {
   auto iter = buckets.find(searchKey);
   if (iter != buckets.end()) {
     return iter->second;
@@ -92,23 +95,32 @@ Bucket *Bucket::getBucketByName(const Item &searchKey) {
 
   openBucket(value);
 }
-Bucket *Bucket::createBucket(const Item &key) {
-
+std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
+  return nullptr;
 }
-Bucket *Bucket::openBucket(const Item &value) {
+std::shared_ptr<Bucket> Bucket::openBucket(const Item &value) {
   auto child = newBucket(tx);
-
+  //<del>
   //this may result in un-equivalent to the original purpose
   //in boltDB, it saves the pointer to mmapped file.
   //it's reinterpreting value on read-only txn, make a copy in writable one
   //here I don't make 'value' a pointer.
   //reimplementation is needed if value is shared among read txns
   // and update in mmap file is reflected through 'bucket' field
-//  std::memcpy(&child->bucketInFile1, value.c_str(), sizeof(child->bucketInFile1));
-//  if (child->bucketInFile1.root == 0) {
-//    child->page =
-//  }
-  return nullptr;
+  //</del>
+
+  if (child->tx->isWritable()) {
+    child->bucketPointer = make_unique<bucketInFile>();
+    std::memcpy(child->bucketPointer.get(), value.pointer, sizeof(bucketInFile));
+  } else {
+    child->bucketPointer.reset(reinterpret_cast<bucketInFile *>(const_cast<char *>(value.pointer)));
+  }
+
+  //is this a inline bucket?
+  if (child->bucketPointer->root == 0) {
+    child->page = reinterpret_cast<Page *>(const_cast<char *>(&value.pointer[BUCKETHEADERSIZE]));
+  }
+  return child;
 }
 
 }

@@ -16,7 +16,7 @@ class Bucket;
 //reference to an element on a given page/node
 struct ElementRef {
   Page *page = nullptr;
-  Node *node = nullptr;
+  std::shared_ptr<Node> node = nullptr;
   uint64_t index = 0;//DO NOT change this default ctor build up a ref to the first element in a page
   //is this a leaf page/node
   bool isLeaf() const;
@@ -24,7 +24,7 @@ struct ElementRef {
   //return the number of inodes or page elements
   size_t count() const;
 
-  ElementRef(Page *page_p, Node *node_p) : page(page_p), node(node_p) {}
+  ElementRef(Page *page_p, std::shared_ptr<Node> node_p) : page(page_p), node(node_p) {}
 };
 
 struct Cursor {
@@ -40,7 +40,7 @@ struct Cursor {
   void search(const Item &key, page_id pageId);
   //search leaf node (which is on the top of the stack) for a Key
   void searchLeaf(const Item &key);
-  void searchBranchNode(const Item &key, Node *node);
+  void searchBranchNode(const Item &key, std::shared_ptr<Node> node);
   void searchBranchPage(const Item &key, Page *page);
   void keyValue(Item &key, Item &value, uint32_t &flag);
 
@@ -51,7 +51,7 @@ struct Cursor {
   void seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag);
 
   //return the node the cursor is currently on
-  Node *getNode() const;
+  std::shared_ptr<Node>getNode() const;
 
   void do_next(Item &key, Item &value, uint32_t &flag);
 
