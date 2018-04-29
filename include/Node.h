@@ -28,7 +28,7 @@ struct Inode {
   }
 };
 
-typedef std::vector<Inode *> InodeList;
+typedef std::vector<Inode> InodeList;
 
 class Page;
 class Bucket;
@@ -45,16 +45,28 @@ struct Node : std::enable_shared_from_this<Node> {
   InodeList inodeList;
 
   void read(Page *page);
-  std::shared_ptr<Node>childAt(uint64_t index);
+  std::shared_ptr<Node> childAt(uint64_t index);
   void do_remove(const Item &key);
+  //return size of deserialized node
+  size_t size() const;
+  size_t pageElementSize() const;
+  std::shared_ptr<Node> root();
+  size_t minKeys() const;
+  bool sizeLessThan(size_t s) const;
+  size_t childIndex(std::shared_ptr<Node> child) const;
+  size_t numChildren() const;
+  std::shared_ptr<Node> nextSibling();
+  void put(Item &oldKey, Item &newKey, Item &value, page_id pageId, uint32_t flag);
+  void del(Item& key);
+  void write(Page* page);
 };
 
 template<>
-int cmp_wrapper<Inode *>(Inode *&t, const Item &p) {
-  if (t->Key() < p) {
+int cmp_wrapper<Inode>(const Inode &t, const Item &p) {
+  if (t.key < p) {
     return -1;
   }
-  if (t->Key() == p) {
+  if (t.key == p) {
     return 0;
   }
   return -1;

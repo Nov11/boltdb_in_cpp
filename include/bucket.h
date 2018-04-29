@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include "Database.h"
 #include "boltDB_types.h"
 #include "Transaction.h"
@@ -44,6 +45,14 @@ class Bucket {
     return tx->isWritable();
   }
 
+  void setBucketPointer(std::unique_ptr<bucketInFile> ptr) {
+    bucketPointer = std::move(ptr);
+  }
+
+  void setRootNode(std::shared_ptr<Node> node) {
+    rootNode = std::move(node);
+  }
+
   Cursor *createCursor();
   std::shared_ptr<Bucket> getBucketByName(const Item &searchKey);
   std::shared_ptr<Bucket> openBucket(const Item &value);
@@ -51,6 +60,8 @@ class Bucket {
 
   void getPageNode(page_id pageId, std::shared_ptr<Node> &node, Page *&page);
   std::shared_ptr<Node> getNode(page_id pageId, std::shared_ptr<Node> parent);
+
+  Item write();
 };
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::bucketInFile);
 }

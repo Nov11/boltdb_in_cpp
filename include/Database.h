@@ -190,7 +190,7 @@ struct Page {
   uint16_t flag;
   uint16_t count;
   uint32_t overflow;
-  uintptr_t ptr;
+  char *ptr;
 
   LeafPageElement *getLeafPageElement(uint64_t index) const {
     assert(ptr);
@@ -228,10 +228,10 @@ struct Page {
   void setOverflow(uint32_t overflow) {
     Page::overflow = overflow;
   }
-  uintptr_t getPtr() const {
+  char *getPtr() const {
     return ptr;
   }
-  void setPtr(uintptr_t ptr) {
+  void setPtr(char *ptr) {
     Page::ptr = ptr;
   }
 };
@@ -245,6 +245,11 @@ enum class PageFlag : uint16_t {
   metaPageFlag = 0x04,
   freelistPageFlag = 0x10,
 };
+
+const size_t PAGEHEADERSIZE = offsetof(Page, ptr);
+const size_t MINKEYSPERPAGE = 2;
+const size_t BRANCHPAGEELEMENTSIZE = sizeof(BranchPageElement);
+const size_t LEAFPAGEELEMENTSIZE = sizeof(LeafPageElement);
 
 }
 #endif //BOLTDB_IN_CPP_DATABASE_H

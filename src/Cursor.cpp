@@ -39,9 +39,9 @@ void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   //are those values sitting a node?
   if (ref.node) {
     auto inode = ref.node->inodeList[ref.index];
-    key = inode->Key();
-    value = inode->Value();
-    flag = inode->flag;
+    key = inode.Key();
+    value = inode.Value();
+    flag = inode.flag;
     return;
   }
 
@@ -86,7 +86,7 @@ void Cursor::searchLeaf(const Item &key) {
     ref.index =
         static_cast<uint32_t >(binary_search(ref.node->inodeList,
                                              key,
-                                             cmp_wrapper<Inode *>,
+                                             cmp_wrapper<Inode >,
                                              ref.node->inodeList.size(),
                                              found
         ));
@@ -103,13 +103,13 @@ void Cursor::searchLeaf(const Item &key) {
 }
 void Cursor::searchBranchNode(const Item &key, std::shared_ptr<Node> node) {
   bool found = false;
-  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode *>, node->inodeList.size(), found);
+  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode >, node->inodeList.size(), found);
   if (!found && index > 0) {
     index--;
   }
   assert(!stk.empty());
   stk.top().index = index;
-  search(key, node->inodeList[index]->pageId);
+  search(key, node->inodeList[index].pageId);
 }
 void Cursor::searchBranchPage(const Item &key, Page *page) {
   auto branchElements = page->getBranchPageElement(0);
@@ -211,7 +211,7 @@ void Cursor::do_first() {
     auto &ref = stk.top();
     page_id pageId = 0;
     if (ref.node != nullptr) {
-      pageId = ref.node->inodeList[ref.index]->pageId;
+      pageId = ref.node->inodeList[ref.index].pageId;
     } else {
       pageId = ref.page->getBranchPageElement(ref.index)->pageId;
     }
@@ -232,7 +232,7 @@ void Cursor::do_last() {
 
     page_id pageId = 0;
     if (ref.node != nullptr) {
-      pageId = ref.node->inodeList[ref.index]->pageId;
+      pageId = ref.node->inodeList[ref.index].pageId;
     } else {
       pageId = ref.page->getBranchPageElement(ref.index)->pageId;
     }

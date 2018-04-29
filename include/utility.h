@@ -35,7 +35,7 @@ size_t binary_search(T &target, V &key, CMP cmp, size_t e_p, bool &found) {
 };
 
 template<class T>
-int cmp_wrapper(T &t, const Item &p) {
+int cmp_wrapper(const T &t, const Item &p) {
   if (t.Key() < p) {
     return -1;
   }

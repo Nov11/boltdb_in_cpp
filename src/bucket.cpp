@@ -96,6 +96,31 @@ std::shared_ptr<Bucket> Bucket::getBucketByName(const Item &searchKey) {
   openBucket(value);
 }
 std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
+  if (tx->db == nullptr || !tx->writable || key.length == 0) {
+    std::cerr << "invalid param " << std::endl;
+    return nullptr;
+  }
+  auto c = Cursor();
+  Item k;
+  Item v;
+  uint32_t flag;
+  c.seek(key, k, v, flag);
+
+  if (k == key) {
+    std::cerr << "key already exists" << std::endl;
+    return nullptr;
+  }
+
+  //create an empty inline bucket
+  auto bucket = Bucket();
+  auto rootNode = std::make_shared<Node>();
+  rootNode->isLeaf = true;
+  setRootNode(rootNode);
+  auto bptr = make_unique<bucketInFile>();
+  setBucketPointer(std::move(bptr));
+
+  bucket.write();
+
   return nullptr;
 }
 std::shared_ptr<Bucket> Bucket::openBucket(const Item &value) {
@@ -121,6 +146,10 @@ std::shared_ptr<Bucket> Bucket::openBucket(const Item &value) {
     child->page = reinterpret_cast<Page *>(const_cast<char *>(&value.pointer[BUCKETHEADERSIZE]));
   }
   return child;
+}
+Item Bucket::write() {
+  size_t s = rootNode->size();
+  return Item();
 }
 
 }
