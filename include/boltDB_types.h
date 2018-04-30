@@ -5,6 +5,7 @@
 #ifndef BOLTDB_IN_CPP_BOLTDB_TYPES_H
 #define BOLTDB_IN_CPP_BOLTDB_TYPES_H
 #include <cstdint>
+#include <functional>
 namespace boltDB_CPP {
 
 typedef uint64_t txn_id;

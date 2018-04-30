@@ -5,6 +5,7 @@
 #include <Database.h>
 #include <utility.h>
 #include <cstring>
+#include <algorithm>
 #include "Node.h"
 namespace boltDB_CPP {
 void Node::read(boltDB_CPP::Page *page) {
@@ -103,7 +104,7 @@ std::shared_ptr<Node> Node::nextSibling() {
   if (idx == 0) {
     return nullptr;
   }
-  return parentNode->childAt(idx - 1);
+  return parentNode->childAt(idx + 1);
 }
 void Node::put(Item &oldKey, Item &newKey, Item &value, page_id pageId, uint32_t flag) {
   if (pageId >= bucket->getTransaction()->metaData->pageId) {
@@ -176,6 +177,246 @@ void Node::write(Page *page) {
     cur += inodeList[i].value.length;
   }
 
+}
+std::vector<std::shared_ptr<Node>> Node::split(size_t pageSize) {
+  std::vector<std::shared_ptr<Node>> result;
+
+  auto cur = shared_from_this();
+  while (true) {
+    std::shared_ptr<Node> a, b;
+    splitTwo(pageSize, a, b);
+    result.push_back(a);
+    if (b == nullptr) {
+      break;
+    }
+    cur = b;
+  }
+  return result;
+}
+
+//used only inside split
+void Node::splitTwo(size_t pageSize, std::shared_ptr<Node> &a, std::shared_ptr<Node> &b) {
+  if (inodeList.size() <= MINKEYSPERPAGE * 2 || sizeLessThan(pageSize)) {
+    a.reset();
+    b.reset();
+    return;
+  }
+
+  double fill = bucket->getFillPercent();
+  if (fill < MINFILLPERCENT) {
+    fill = MINFILLPERCENT;
+  }
+  if (fill > MAXFILLPERCENT) {
+    fill = MAXFILLPERCENT;
+  }
+
+  auto threshold = static_cast<size_t >(pageSize * fill);
+
+  size_t sz;
+  auto index = splitIndex(threshold, sz);
+
+  if (parentNode == nullptr) {
+    //using share pointer to deal with this
+    parentNode = new Node;
+    parentNode->bucket = bucket;
+    parentNode->children.push_back(shared_from_this());
+  }
+
+  auto newNode = std::make_shared<Node>();
+  newNode->bucket = bucket;
+  newNode->isLeaf = isLeaf;
+  newNode->parentNode = parentNode;
+  parentNode->children.push_back(newNode);
+
+  for (size_t i = index; i < inodeList.size(); i++) {
+    newNode->inodeList.push_back(inodeList[i]);
+  }
+  inodeList.erase(inodeList.begin() + index, inodeList.end());
+  bucket->getTransaction()->stats.splitCount++;
+
+}
+size_t Node::splitIndex(size_t threshold, size_t &sz) {
+  size_t index = 0;
+  sz = PAGEHEADERSIZE;
+  for (size_t i = 0; i < inodeList.size() - MINKEYSPERPAGE; i++) {
+    index = i;
+    auto &ref = inodeList[i];
+    auto elementSize = pageElementSize() + ref.key.length + ref.value.length;
+    if (i >= MINKEYSPERPAGE && sz + elementSize > threshold) {
+      break;
+    }
+    sz += elementSize;
+  }
+  return index;
+}
+void Node::free() {
+  if (pageId) {
+    auto txn = bucket->getTransaction();
+    txn->db->getFreeLIst()->free(txn->metaData->txnId, txn->getPage(pageId));
+    pageId = 0;
+  }
+}
+void Node::removeChild(std::shared_ptr<Node> target) {
+  for (auto iter = children.begin(); iter != children.end(); iter++) {
+    if (*iter == target) {
+      children.erase(iter);
+      return;
+    }
+  }
+}
+void Node::dereference() {
+  //node lives in heap
+  //nothing to be done here
+}
+int Node::spill() {
+  if (spilled) {
+    return 0;
+  }
+  auto tx = bucket->getTransaction();
+
+  //by pointer value for now
+  std::sort(children.begin(), children.end());
+  //spill will modify children's size, no range loop here
+  for (size_t i = 0; i < children.size(); i++) {
+    if (children[i]->spill()) {
+      return -1;
+    }
+  }
+
+  children.clear();
+  auto nodes = split(tx->db->getPageSize());
+
+  for (auto &item : nodes) {
+    if (item->pageId > 0) {
+      tx->db->getFreeLIst()->free(tx->metaData->txnId, tx->getPage(item->pageId));
+    }
+
+    auto page = tx->allocate((size() / tx->db->getPageSize()) + 1);
+    if (page == nullptr) { return -1; }
+
+    if (page->pageId >= tx->metaData->pageId) {
+      assert(false);
+    }
+    item->pageId = page->pageId;
+    item->write(page);
+    item->spilled = true;
+
+    if (item->parentNode) {
+      auto k = item->key;
+      if (k.length == 0) {
+        k = inodeList.front().key;
+      }
+      Item emptyValue;
+      item->parentNode->put(k, item->inodeList.front().key, emptyValue, item->pageId, 0);
+      item->key = item->inodeList[0].key;
+    }
+
+    tx->stats.spillCount++;
+  }
+
+  if (parentNode && parentNode->pageId == 0) {
+    children.clear();
+    return parentNode->spill();
+  }
+  return 0;
+}
+void Node::rebalance() {
+  if (!unbalanced) {
+    return;
+  }
+  unbalanced = false;
+  bucket->getTransaction()->stats.rebalanceCount++;
+
+  auto threshold = bucket->getTransaction()->db->getPageSize() / 4;
+  if (size() > threshold && inodeList.size() > minKeys()) {
+    return;
+  }
+
+  if (parentNode == nullptr) {
+    //root node has only one branch, need to collapse it
+    if (!isLeaf && inodeList.size() == 1) {
+      auto child = bucket->getNode(inodeList[0].pageId, shared_from_this());
+      isLeaf = child->isLeaf;
+      inodeList = child->inodeList;
+      children = child->children;
+
+      for (auto &item : inodeList) {
+        auto iter = bucket->nodes.find(item.pageId);
+        if (iter != bucket->nodes.end()) {
+          iter->second->parentNode = this;
+        }
+      }
+
+      child->parentNode = nullptr;
+      bucket->nodes.erase(child->pageId);
+      child->free();
+    }
+  }
+
+  if (numChildren() == 0) {
+    parentNode->del(key);
+    parentNode->removeChild(shared_from_this());
+    bucket->nodes.erase(pageId);
+    free();
+    parentNode->rebalance();
+    return;
+  }
+
+
+  assert(parentNode->numChildren()>1);
+
+  if (parentNode->childIndex(shared_from_this()) == 0) {
+    auto target = nextSibling();
+
+    //this should move inodes of target into current node
+    //and re set up between node's parent&child link
+    for (auto &item : target->inodeList) {
+      auto iter = bucket->nodes.find(item.pageId);
+      if (iter != bucket->nodes.end()) {
+        auto& childNode = iter->second;
+        childNode->parentNode->removeChild(childNode);
+        childNode->parentNode = this;
+        childNode->parentNode->children.push_back(childNode);
+      }
+    }
+
+    std::copy(target->inodeList.begin(), target->inodeList.end(), std::back_inserter(inodeList));
+    parentNode->del(target->key);
+    parentNode->removeChild(target);
+    bucket->nodes.erase(target->pageId);
+    target->free();
+  }else{
+    auto target = prevSibling();
+
+    for (auto &item : target->inodeList) {
+      auto iter = bucket->nodes.find(item.pageId);
+      if (iter != bucket->nodes.end()) {
+        auto& childNode = iter->second;
+        childNode->parentNode->removeChild(childNode);
+        childNode->parentNode = this;
+        childNode->parentNode->children.push_back(childNode);
+      }
+    }
+
+    std::copy(target->inodeList.begin(), target->inodeList.end(), std::back_inserter(inodeList));
+    parentNode->del(this->key);
+    parentNode->removeChild(shared_from_this());
+    bucket->nodes.erase(this->pageId);
+    this->free();
+  }
+
+
+  parentNode->rebalance();
+}
+std::shared_ptr<Node> Node::prevSibling() {
+  if (parentNode == nullptr) {
+    return nullptr;
+  }
+  auto idx = parentNode->childIndex(shared_from_this());
+  if (idx == 0) {
+    return nullptr;
+  }
+  return parentNode->childAt(idx - 1);
 }
 
 }

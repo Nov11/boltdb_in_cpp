@@ -4,7 +4,7 @@
 
 #ifndef BOLTDB_IN_CPP_UTILITY_H
 #define BOLTDB_IN_CPP_UTILITY_H
-
+#include "boltDB_types.h"
 #include "Database.h"
 namespace boltDB_CPP {
 int file_Wlock(int fd);
@@ -46,10 +46,45 @@ int cmp_wrapper(const T &t, const Item &p) {
 }
 
 template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args)
-{
+std::unique_ptr<T> make_unique(Args &&... args) {
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 }
 
+void mergePageIds(std::vector<boltDB_CPP::page_id> &dest,
+                  const std::vector<boltDB_CPP::page_id> &a,
+                  const std::vector<boltDB_CPP::page_id> &b) {
+  if (a.empty()) {
+    dest = b;
+    return;
+  }
+  if (b.empty()) {
+    dest = a;
+    return;
+  }
+
+  dest.clear();
+  size_t ia = 0;
+  size_t ib = 0;
+  while (ia != a.size() || ib != b.size()) {
+    if (ia == a.size()) {
+      dest.push_back(b[ib++]);
+    } else if (ib == b.size()) {
+      dest.push_back(a[ia++]);
+    } else {
+      if (b[ib] < a[ia]) {
+        dest.push_back(b[ib++]);
+      } else {
+        dest.push_back(a[ia++]);
+      }
+    }
+  }
+}
+
+std::vector<boltDB_CPP::page_id> merge(const std::vector<boltDB_CPP::page_id> &a,
+                                       const std::vector<boltDB_CPP::page_id> &b) {
+  std::vector<boltDB_CPP::page_id> result;
+  mergePageIds(result, a, b);
+  return result;
+}
 #endif //BOLTDB_IN_CPP_UTILITY_H

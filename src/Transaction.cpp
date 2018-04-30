@@ -13,4 +13,16 @@ Page *boltDB_CPP::Transaction::getPage(page_id pageId) {
   }
   return db->getPage(pageId);
 }
+Page *Transaction::allocate(size_t count) {
+  auto ret = db->allocate(count);
+  if (ret == nullptr) {
+    return ret;
+  }
+  pageTable[ret->pageId] = ret;
+
+  stats.pageCount++;
+  stats.pageAlloc += count * db->getPageSize();
+
+  return ret;
+}
 }

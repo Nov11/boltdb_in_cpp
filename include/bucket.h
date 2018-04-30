@@ -15,6 +15,9 @@
 namespace boltDB_CPP {
 const uint32_t MAXKEYSIZE = 32768;
 const uint32_t MAXVALUESIZE = (1L << 31) - 2;
+const double MINFILLPERCENT = 0.1;
+const double MAXFILLPERCENT = 1.0;
+const double DEFAULTFILLPERCENT = 0.5;
 struct bucketInFile {
   page_id root = 0;
   uint64_t sequence = 0;
@@ -22,7 +25,7 @@ struct bucketInFile {
 
 class Node;
 class Cursor;
-class Bucket {
+struct Bucket {
   Transaction *tx = nullptr;
   Page *page = nullptr;
   std::shared_ptr<Node> rootNode = nullptr;
@@ -51,6 +54,10 @@ class Bucket {
 
   void setRootNode(std::shared_ptr<Node> node) {
     rootNode = std::move(node);
+  }
+
+  double getFillPercent() const {
+    return fillpercent;
   }
 
   Cursor *createCursor();

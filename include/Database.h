@@ -56,6 +56,13 @@ struct FreeList {
   std::vector<page_id> pageIds;//free & available
   std::map<txn_id, std::vector<page_id>> pending;//soon to be free
   std::map<page_id, bool> cache;//all free & pending page_ids
+
+  void free(txn_id tid, Page *page);
+  size_t size();//size in bytes after serialization
+  size_t count();
+  size_t free_count();
+  size_t pending_count();
+  void copyall(std::vector<page_id>& dest);
 };
 
 struct Stat {
@@ -98,7 +105,7 @@ class Database {
   uint64_t dataSize;
   MetaData *meta0;
   MetaData *meta1;
-  uint64_t pageSize = 0;
+  uint64_t pageSize = DEFAULTPAGESIZE;
   bool opened;
   Transaction *rwtx;
   std::vector<Transaction *> txs;
@@ -150,6 +157,11 @@ class Database {
   }
 
   Page *getPage(page_id pageId);
+  FreeList* getFreeLIst();
+
+  uint64_t getPageSize()const;
+
+  Page* allocate(size_t count);
 };
 
 struct BranchPageElement {

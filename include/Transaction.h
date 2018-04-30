@@ -59,6 +59,8 @@ struct Transaction {
   }
 
   Page *getPage(page_id pageId);
+
+  Page* allocate(size_t count);
 };
 
 }
