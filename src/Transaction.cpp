@@ -25,4 +25,15 @@ Page *Transaction::allocate(size_t count) {
 
   return ret;
 }
+void Transaction::for_each_page(page_id pageId, int depth, std::function<void(Page *, int)> fn) {
+  auto p = getPage(pageId);
+  fn(p, depth);
+
+  if (p->flag & static_cast<uint32_t >(PageFlag::branchPageFlag)) {
+    for (int i = 0; i < p->getCount(); i++) {
+      auto element = p->getBranchPageElement(i);
+      for_each_page(element->pageId, depth, fn);
+    }
+  }
+}
 }

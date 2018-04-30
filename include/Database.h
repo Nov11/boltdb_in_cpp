@@ -62,15 +62,15 @@ struct FreeList {
   size_t count();
   size_t free_count();
   size_t pending_count();
-  void copyall(std::vector<page_id>& dest);
+  void copyall(std::vector<page_id> &dest);
   page_id allocate(size_t sz);
   void release(txn_id tid);
   void rollback(txn_id tid);
   bool freed(page_id pageId);
-  void read(Page* page);
-  int write(Page* page);
+  void read(Page *page);
+  int write(Page *page);
   void reindex();
-  void reload(Page* page);
+  void reload(Page *page);
 };
 
 struct Stat {
@@ -165,11 +165,11 @@ class Database {
   }
 
   Page *getPage(page_id pageId);
-  FreeList* getFreeLIst();
+  FreeList *getFreeLIst();
 
-  uint64_t getPageSize()const;
+  uint64_t getPageSize() const;
 
-  Page* allocate(size_t count);
+  Page *allocate(size_t count);
 };
 
 struct BranchPageElement {
@@ -265,6 +265,14 @@ enum class PageFlag : uint16_t {
   metaPageFlag = 0x04,
   freelistPageFlag = 0x10,
 };
+
+bool isSet(uint32_t flag, PageFlag flag1) {
+  return static_cast<bool>(flag & static_cast<uint32_t >(flag1));
+}
+
+bool isBucketLeaf(uint32_t flag){
+  return isSet(flag, PageFlag::bucketLeafFlag);
+}
 
 const size_t PAGEHEADERSIZE = offsetof(Page, ptr);
 const size_t MINKEYSPERPAGE = 2;

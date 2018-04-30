@@ -107,7 +107,10 @@ std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
   c.seek(key, k, v, flag);
 
   if (k == key) {
-    std::cerr << "key already exists" << std::endl;
+    if (flag & static_cast<uint16_t>(PageFlag::bucketLeafFlag)) {
+      std::cerr << "key already exists" << std::endl;
+      return getBucketByName(key);
+    }
     return nullptr;
   }
 
@@ -119,9 +122,14 @@ std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
   auto bptr = make_unique<bucketInFile>();
   setBucketPointer(std::move(bptr));
 
-  bucket.write();
-
-  return nullptr;
+  auto value = bucket.write();
+  size_t k_len = 0;
+  auto ck = cloneBytes(key, &k_len);
+  Item newKey(ck, k_len);
+  Item putValue(value.get(), BUCKETHEADERSIZE + rootNode->size());
+  c.getNode()->put(newKey, newKey, putValue, 0, static_cast<uint32_t >(PageFlag::bucketLeafFlag));
+  page = nullptr;
+  return getBucketByName(key);
 }
 std::shared_ptr<Bucket> Bucket::openBucket(const Item &value) {
   auto child = newBucket(tx);
@@ -147,9 +155,313 @@ std::shared_ptr<Bucket> Bucket::openBucket(const Item &value) {
   }
   return child;
 }
-Item Bucket::write() {
+std::unique_ptr<char[]> Bucket::write(size_t *retSz) {
   size_t s = rootNode->size();
-  return Item();
+  size_t length = BUCKETHEADERSIZE + s;
+  std::unique_ptr<char[]> result(new char[length]);
+  char *ptr = result.get();
+  *(reinterpret_cast<bucketInFile *>(ptr)) = *bucketPointer;
+  auto ret = (Page *) &result[BUCKETHEADERSIZE];
+  rootNode->write(ret);
+  if (retSz) {
+    *retSz = length;
+  }
+  return result;
+}
+std::shared_ptr<Bucket> Bucket::createBucketIfNotExists(const Item &key) {
+  auto child = createBucket(key);
+  return child;
+}
+int Bucket::deleteBucket(const Item &key) {
+  if (tx->db == nullptr || !isWritable()) {
+    return -1;
+  }
+  auto c = createCursor();
+  Item k;
+  Item v;
+  uint32_t flag;
+  c->seek(key, k, v, flag);
+  if (k != key || flag & static_cast<uint32_t >(PageFlag::bucketLeafFlag)) {
+    return -1;
+  }
+
+  auto child = getBucketByName(key);
+  auto ret = for_each([&child](const Item &k, const Item &v) {
+    if (v.length == 0) {
+      auto ret = child->deleteBucket(k);
+      if (ret != 0) {
+        return ret;
+      }
+    }
+    return 0;
+  });
+  if (ret != 0) {
+    return ret;
+  }
+
+  //remove cache
+  buckets.erase(key);
+
+  child->nodes.clear();
+  child->rootNode = nullptr;
+  child->free();
+
+  c->getNode()->del(key);
+
+  return 0;
+}
+int Bucket::for_each(std::function<int(const Item &, const Item &)> fn) {
+  if (tx->db == nullptr) { return -1; }
+  auto c = createCursor();
+  Item k;
+  Item v;
+  c->first(k, v);
+  while (k.length != 0) {
+    auto ret = fn(k, v);
+    if (ret != 0) {
+      return ret;
+    }
+    c->next(k, v);
+  }
+  return 0;
+}
+void Bucket::free() {
+  if (bucketPointer->root == 0) {
+    return;
+  }
+
+  for_each_page_node([this](Page *p, Node *n, int) {
+    if (p) {
+      tx->db->getFreeLIst()->free(tx->metaData->txnId, p);
+    } else {
+      assert(n);
+      n->free();
+    }
+  });
+
+  bucketPointer->root = 0;
+
+}
+void Bucket::for_each_page_node(std::function<void(Page *, Node *, int)> fn) {
+  if (page) {
+    fn(page, nullptr, 0);
+    return;
+  }
+  for_each_page_node_impl(getRoot(), 0, fn);
+}
+void Bucket::for_each_page_node_impl(page_id pid, int depth, std::function<void(Page *, Node *, int)> fn) {
+  std::shared_ptr<Node> node;
+  Page *page;
+  getPageNode(pid, node, page);
+
+  fn(page, node.get(), depth);
+  if (page) {
+    if (isSet(page->flag, PageFlag::branchPageFlag)) {
+      for (size_t i = 0; i < page->getCount(); i++) {
+        auto element = page->getBranchPageElement(i);
+        for_each_page_node_impl(element->pageId, depth + 1, fn);
+      }
+    }
+  } else {
+    if (!node->isLeaf) {
+      for (auto item : node->inodeList) {
+        for_each_page_node_impl(item.pageId, depth + 1, fn);
+      }
+    }
+  }
+}
+void Bucket::dereference() {
+  if (rootNode) {
+    rootNode->root()->dereference();
+  }
+
+  for (auto item : buckets) {
+    item.second->dereference();
+  }
+}
+void Bucket::rebalance() {
+  for (auto &item : nodes) {
+    item.second->rebalance();
+  }
+
+  for (auto &item : buckets) {
+    item.second->rebalance();
+  }
+}
+char *Bucket::cloneBytes(const Item &key, size_t *retSz) {
+  if (retSz) {
+    *retSz = key.length;
+  }
+  auto result(new char[key.length]);
+  std::memcpy(result, key.pointer, key.length);
+  return result;
+}
+Item Bucket::get(const Item &key) {
+  Item k;
+  Item v;
+  uint32_t flag = 0;
+  createCursor()->seek(key, k, v, flag);
+  if (isSet(flag, PageFlag::bucketLeafFlag) || k != key) {
+    return Item();
+  }
+  return v;
+}
+int Bucket::put(const Item &key, const Item &value) {
+  if (tx->db == nullptr || !isWritable() || key.length == 0 || key.length > MAXKEYSIZE
+      || value.length > MAXVALUESIZE) {
+    return -1;
+  }
+
+  auto c = createCursor();
+  Item k;
+  Item v;
+  uint32_t flag = 0;
+
+  c->seek(key, k, v, flag);
+
+  if (k == key && isSet(flag, PageFlag::bucketLeafFlag)) {
+    return -1;
+  }
+
+  auto tmp = cloneBytes(key);
+  Item newKey(tmp, key.length);
+  c->getNode()->put(newKey, newKey, value, 0, static_cast<uint32_t >(PageFlag::bucketLeafFlag));
+
+  return 0;
+}
+int Bucket::remove(const Item &key) {
+  if (tx->db == nullptr || !isWritable()) {
+    return -1;
+  }
+
+  auto c = createCursor();
+  Item k;
+  Item v;
+  uint32_t flag = 0;
+
+  c->seek(key, k, v, flag);
+
+  if (isBucketLeaf(flag)) {
+    return -1;
+  }
+
+  c->getNode()->del(key);
+  return 0;
+}
+uint64_t Bucket::sequence() {
+  return bucketPointer->sequence;
+}
+int Bucket::setSequence(uint64_t v) {
+  if (tx->db == nullptr || !isWritable()) {
+    return -1;
+  }
+  if (rootNode == nullptr) {
+    getNode(getRoot(), nullptr);
+  }
+
+  bucketPointer->sequence = v;
+  return 0;
+}
+int Bucket::nextSequence(uint64_t &v) {
+  if (tx->db == nullptr || !isWritable()) {
+    return -1;
+  }
+  if (rootNode == nullptr) {
+    getNode(getRoot(), nullptr);
+  }
+  bucketPointer->sequence++;
+  v = bucketPointer->sequence;
+  return 0;
+}
+void Bucket::for_each_page(std::function<void(Page *, int)> fn) {
+  if (page) {
+    fn(page, 0);
+    return;
+  }
+
+  tx->for_each_page(getRoot(), 0, fn);
+}
+int Bucket::maxInlineBucketSize() {
+  return static_cast<int>(tx->db->getPageSize() / 4);
+}
+bool Bucket::inlinable() {
+  auto r = rootNode;
+  if (r == nullptr || !r->isLeaf) {
+    return false;
+  }
+
+  size_t s = PAGEHEADERSIZE;
+  for (auto item : r->inodeList) {
+    s += LEAFPAGEELEMENTSIZE + item.key.length + item.value.length;
+
+    if (isBucketLeaf(item.flag)) {
+      return false;
+    }
+    if (s > maxInlineBucketSize()) {
+      return false;
+    }
+  }
+  return true;
+}
+int Bucket::spill() {
+  for (auto item : buckets) {
+    auto name = item.first;
+    auto child = item.second;
+
+    std::unique_ptr<char[]> value;
+    size_t len = 0;
+    if (child->inlinable()) {
+      child->free();
+      value = child->write(&len);
+    } else {
+      if (child->spill()) {
+        return -1;
+      }
+
+      len = sizeof(bucketInFile);
+      value.reset(new char[len]);
+      *(reinterpret_cast<bucketInFile *>(value.get())) = *child->bucketPointer;
+    }
+
+    if (child->rootNode == nullptr) {
+      continue;
+    }
+
+    auto c = createCursor();
+    Item k;
+    Item v;
+    uint32_t flag = 0;
+
+    c->seek(name, k, v, flag);
+
+    if (k != name) {
+      assert(false);
+    }
+
+    if (!isBucketLeaf(flag)) {
+      assert(false);
+    }
+    Item newValue(value.get(), len);
+    c->getNode()->put(name, name, newValue, 0, static_cast<uint32_t >(PageFlag::bucketLeafFlag));
+  }
+
+  if (rootNode == nullptr) {
+    return 0;
+  }
+
+  auto ret = rootNode->spill();
+  if (ret) {
+    return ret;
+  }
+
+  rootNode = rootNode->root();
+
+  if (rootNode->pageId >= tx->metaData->pageId) {
+    assert(false);
+  }
+
+  bucketPointer->root = rootNode->pageId;
+  return 0;
 }
 
 }

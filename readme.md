@@ -13,7 +13,8 @@
 - [x] node
 - [x] page
 - [x] cursor
-- [ ] bucket
+- [x] bucket
 - [ ] tx
 - [x] freelist
 - [ ] db
+

@@ -57,8 +57,8 @@ struct Node : std::enable_shared_from_this<Node> {
   size_t numChildren() const;
   std::shared_ptr<Node> nextSibling();
   std::shared_ptr<Node> prevSibling();
-  void put(Item &oldKey, Item &newKey, Item &value, page_id pageId, uint32_t flag);
-  void del(Item &key);
+  void put(const Item &oldKey, const Item &newKey, const Item &value, page_id pageId, uint32_t flag);
+  void del(const Item &key);
   void write(Page *page);
   std::vector<std::shared_ptr<Node>> split(size_t pageSize);
   void splitTwo(size_t pageSize, std::shared_ptr<Node> &a, std::shared_ptr<Node> &b);

@@ -15,6 +15,7 @@ class Database;
 class MetaData;
 class Bucket;
 class Page;
+class Node;
 
 struct TxStat {
   uint64_t pageCount = 0;
@@ -60,7 +61,9 @@ struct Transaction {
 
   Page *getPage(page_id pageId);
 
-  Page* allocate(size_t count);
+  Page *allocate(size_t count);
+
+  void for_each_page(page_id pageId, int depth, std::function<void(Page *, int)>);
 };
 
 }
