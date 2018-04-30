@@ -41,15 +41,28 @@ const int DEFAULTALLOCATIONSIZE = 16 * 1024 * 1024;
 const int DEFAULTPAGESIZE = 4096;// this value is returned by `getconf PAGE_SIZE` on ubuntu 17.10 x86_64
 
 struct MetaData {
-  uint32_t magic;
-  uint32_t version;
-  uint32_t pageSize;
-  uint32_t flags;
-  Bucket *root;
-  page_id freeList;
-  page_id pageId;
-  txn_id txnId;
-  uint64_t checkSum;
+  uint32_t magic = 0;
+  uint32_t version = 0;
+  uint32_t pageSize = 0;
+  uint32_t flags = 0;
+  bucketInFile *root = nullptr;
+  page_id freeList = 0;
+  page_id pageId = 0;
+  txn_id txnId = 0;
+  uint64_t checkSum = 0;
+  static MetaData *copyCreateFrom(MetaData *other) {
+    if (other == nullptr) {
+      return other;
+    }
+    auto ret = new MetaData;
+    //member wise copy
+    *ret = *other;
+    return ret;
+  }
+  bool validate();
+//  uint64_t sum64();
+
+  void write(Page *page);
 };
 
 struct FreeList {
@@ -97,7 +110,7 @@ class Batch {
   //a function list
 };
 
-class Database {
+struct Database {
   bool strictMode = false;
   bool noSync = false;
   bool noGrowSync = false;
@@ -105,7 +118,7 @@ class Database {
   uint32_t maxBatchSize = 0;
   uint32_t maxBatchDelayMillionSeconds = 0;
   uint32_t allocSize = 0;
-
+  uint32_t fileSize = 0;
   std::string path;
   int fd = -1;
   void *dataref;//readonly
@@ -130,6 +143,7 @@ class Database {
 
   bool readOnly;
 
+  std::function<int(char *, size_t, off_t)> writeAt;
  public:
   int FD() const {
     return fd;
@@ -170,6 +184,11 @@ class Database {
   uint64_t getPageSize() const;
 
   Page *allocate(size_t count);
+
+  MetaData *meta();
+  void removeTxn(Transaction *txn);
+
+  int grow(size_t sz);
 };
 
 struct BranchPageElement {
@@ -254,6 +273,10 @@ struct Page {
   void setPtr(char *ptr) {
     Page::ptr = ptr;
   }
+
+  MetaData *getMeta() {
+    return reinterpret_cast<MetaData *>(&ptr);
+  }
 };
 
 // transverse all kv pairs in a bucket in sorted order
@@ -270,7 +293,7 @@ bool isSet(uint32_t flag, PageFlag flag1) {
   return static_cast<bool>(flag & static_cast<uint32_t >(flag1));
 }
 
-bool isBucketLeaf(uint32_t flag){
+bool isBucketLeaf(uint32_t flag) {
   return isSet(flag, PageFlag::bucketLeafFlag);
 }
 

@@ -35,7 +35,6 @@ struct Bucket {
   std::unordered_map<page_id, std::shared_ptr<Node>> nodes;//node cache. used if txn is writable
   double fillpercent = 0.5;
 
-  std::shared_ptr<Bucket> newBucket(Transaction *tx);
  public:
   Transaction *getTransaction() const {
     return tx;
@@ -80,7 +79,7 @@ struct Bucket {
   void free();
   void dereference();
   void rebalance();
-  char* cloneBytes(const Item &key, size_t *retSz = nullptr);
+  char *cloneBytes(const Item &key, size_t *retSz = nullptr);
   Item get(const Item &key);
   int put(const Item &key, const Item &value);
   int remove(const Item &key);
@@ -91,6 +90,7 @@ struct Bucket {
   bool inlinable();
   int spill();//write dirty pages
 };
+std::shared_ptr<Bucket> newBucket(Transaction *tx);
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::bucketInFile);
 }
 #endif //BOLTDB_IN_CPP_BUCKET_H

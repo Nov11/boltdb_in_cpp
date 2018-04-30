@@ -4,7 +4,10 @@
 
 #include <Database.h>
 #include <algorithm>
-#include <utility.h>
+#include <utility>
+#include <cstring>
+#include <zconf.h>
+#include "utility.h"
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Database::getPage(page_id pageId) {
@@ -20,6 +23,56 @@ uint64_t Database::getPageSize() const {
 }
 Page *Database::allocate(size_t count) {
   return nullptr;
+}
+MetaData *Database::meta() {
+  if (meta0->txnId > meta1->txnId) {
+    std::swap(meta1, meta0);
+  }
+  if (meta0->validate()) {
+    return meta0;
+  }
+
+  if (meta1->validate()) {
+    return meta1;
+  }
+  assert(false);
+}
+void Database::removeTxn(Transaction *txn) {
+  mmapLock.readUnlock();
+  metaLock.lock();
+
+  for (auto iter = txs.begin(); iter != txs.end(); iter++) {
+    if (*iter == txn) {
+      txs.erase(iter);
+      break;
+    }
+  }
+
+  metaLock.unlock();
+
+}
+int Database::grow(size_t sz) {
+  if (sz <= fileSize) {
+    return 0;
+  }
+
+  if (dataSize <= allocSize) {
+    sz = dataSize;
+  } else {
+    sz += allocSize;
+  }
+
+  if (!noGrowSync && !readOnly) {
+    if (ftruncate(fd, sz)) {
+      return -1;
+    }
+    if (fsync(fd)) {
+      return -1;
+    }
+  }
+
+  fileSize = sz;
+  return 0;
 }
 
 void FreeList::free(txn_id tid, Page *page) {
@@ -210,4 +263,37 @@ void FreeList::reload(Page *page) {
   reindex();
 }
 
+bool MetaData::validate() {
+  if (magic != MAGIC) {
+    return false;
+  }
+
+  if (version != VERSION) {
+    return false;
+  }
+
+//  if (checkSum != 0 && checkSum != sum64()) {
+//    return false;
+//  }
+  return true;
+}
+void MetaData::write(Page *page) {
+  if (root->root >= pageId) {
+    assert(false);
+  }
+  if (freeList >= pageId) {
+    assert(false);
+  }
+
+  page->pageId = txnId % 2;
+  page->flag |= static_cast<uint32_t >(PageFlag::metaPageFlag);
+
+  checkSum = 0;
+
+  std::memcpy(page->getMeta(), this, sizeof(MetaData));
+}
+//uint64_t MetaData::sum64() {
+//
+//  return 0;
+//}
 }

@@ -10,7 +10,7 @@
 
 namespace boltDB_CPP {
 
-std::shared_ptr<Bucket> Bucket::newBucket(Transaction *tx_p) {
+std::shared_ptr<Bucket> newBucket(Transaction *tx_p) {
   auto bucket = std::make_shared<Bucket>();
   bucket->tx = tx_p;
   return bucket;
