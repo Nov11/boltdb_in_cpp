@@ -63,6 +63,14 @@ struct FreeList {
   size_t free_count();
   size_t pending_count();
   void copyall(std::vector<page_id>& dest);
+  page_id allocate(size_t sz);
+  void release(txn_id tid);
+  void rollback(txn_id tid);
+  bool freed(page_id pageId);
+  void read(Page* page);
+  int write(Page* page);
+  void reindex();
+  void reload(Page* page);
 };
 
 struct Stat {

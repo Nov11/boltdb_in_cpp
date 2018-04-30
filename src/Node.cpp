@@ -362,8 +362,7 @@ void Node::rebalance() {
     return;
   }
 
-
-  assert(parentNode->numChildren()>1);
+  assert(parentNode->numChildren() > 1);
 
   if (parentNode->childIndex(shared_from_this()) == 0) {
     auto target = nextSibling();
@@ -373,7 +372,7 @@ void Node::rebalance() {
     for (auto &item : target->inodeList) {
       auto iter = bucket->nodes.find(item.pageId);
       if (iter != bucket->nodes.end()) {
-        auto& childNode = iter->second;
+        auto &childNode = iter->second;
         childNode->parentNode->removeChild(childNode);
         childNode->parentNode = this;
         childNode->parentNode->children.push_back(childNode);
@@ -385,13 +384,13 @@ void Node::rebalance() {
     parentNode->removeChild(target);
     bucket->nodes.erase(target->pageId);
     target->free();
-  }else{
+  } else {
     auto target = prevSibling();
 
     for (auto &item : target->inodeList) {
       auto iter = bucket->nodes.find(item.pageId);
       if (iter != bucket->nodes.end()) {
-        auto& childNode = iter->second;
+        auto &childNode = iter->second;
         childNode->parentNode->removeChild(childNode);
         childNode->parentNode = this;
         childNode->parentNode->children.push_back(childNode);
@@ -404,7 +403,6 @@ void Node::rebalance() {
     bucket->nodes.erase(this->pageId);
     this->free();
   }
-
 
   parentNode->rebalance();
 }

@@ -8,3 +8,12 @@
 
 ### todo
 - [ ] uniform pointer/shared pointer usage
+
+### progress
+- [x] node
+- [x] page
+- [x] cursor
+- [ ] bucket
+- [ ] tx
+- [x] freelist
+- [ ] db
