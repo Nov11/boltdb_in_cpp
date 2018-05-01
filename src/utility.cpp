@@ -50,11 +50,13 @@ int mmap_db_file(Database *database, size_t sz) {
   database->setDataSize(sz);
 }
 
-int munmap_db_file(Database *database, size_t sz) {
-  if (database->getData() == nullptr) {
+//un-map database file from memory
+int munmap_db_file(Database *database) {
+  //return if it has no mapping data
+  if (database->getDataRef() == nullptr) {
     return 0;
   }
-  int ret = ::munmap(database->getData(), database->getDataSize());
+  int ret = ::munmap(database->getDataRef(), database->getDataSize());
   if (ret == -1) {
     perror("munmap");
     return ret;

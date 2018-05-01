@@ -3,12 +3,12 @@
 * based on version tagged 1.3.1
 * supports x86_64 linux only
 * compiles against C++ 11
-* will not test on ubuntu 17.10
+* will be tested on ubuntu 17.10
 
 
 ### todo
-- [ ] uniform pointer/shared pointer usage
-
+- [ ] uniform pointer/shared pointer usage(this will not be needed providing memory pool)
+- [ ] create a per txn memory pool to take care of memory management
 ### progress
 - [x] node
 - [x] page
@@ -17,4 +17,5 @@
 - [ ] tx
 - [x] freelist
 - [ ] db
+- [ ] test cases
 

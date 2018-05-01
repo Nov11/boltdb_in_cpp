@@ -44,7 +44,7 @@ void Transaction::init(Database *db) {
   metaData = MetaData::copyCreateFrom(db->meta());
   root = newBucket(this);
   root->bucketPointer.reset(new bucketInFile);
-  *root->bucketPointer = *metaData->root;
+  *root->bucketPointer = metaData->root;
   if (writable) {
     metaData->txnId += 1;
   }
@@ -81,7 +81,7 @@ int Transaction::commit() {
     return -1;
   }
 
-  metaData->root->root = root->getRoot();
+  metaData->root.root = root->getRoot();
   auto pgid = metaData->pageId;
 
   db->getFreeLIst()->free(metaData->txnId, db->getPage(metaData->freeList));

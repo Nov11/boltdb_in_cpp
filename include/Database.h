@@ -5,6 +5,7 @@
 #ifndef BOLTDB_IN_CPP_DATABASE_H
 #define BOLTDB_IN_CPP_DATABASE_H
 
+#include <unistd.h>
 #include <mutex>
 #include <vector>
 #include <stack>
@@ -45,7 +46,7 @@ struct MetaData {
   uint32_t version = 0;
   uint32_t pageSize = 0;
   uint32_t flags = 0;
-  bucketInFile *root = nullptr;
+  bucketInFile root;
   page_id freeList = 0;
   page_id pageId = 0;
   txn_id txnId = 0;
@@ -101,6 +102,15 @@ struct Stat {
   TxStat *txStat;
 };
 
+struct Options {
+  uint32_t timeOut = 0; //currently not supporting this parameter
+  bool noGrowSync = false;
+  bool readOnly = true;
+  uint32_t mmapFlag = 0;
+  size_t initalMmapSize = 0;
+};
+const Options DEFAULTOPTION{};
+
 class Database;
 
 class Batch {
@@ -121,29 +131,35 @@ struct Database {
   uint32_t fileSize = 0;
   std::string path;
   int fd = -1;
-  void *dataref;//readonly
+  void *dataref = nullptr;//readonly . this is mmap data
   char(*data)[MAXMAPSIZE];//data is a pointer to block of memory if sizeof MAXMAPSIZE
-  uint64_t dataSize;
-  MetaData *meta0;
-  MetaData *meta1;
-  uint64_t pageSize = DEFAULTPAGESIZE;
-  bool opened;
-  Transaction *rwtx;
+  uint64_t dataSize = 0;
+  MetaData *meta0 = nullptr;
+  MetaData *meta1 = nullptr;
+  uint32_t pageSize = DEFAULTPAGESIZE;
+  bool opened = false;
+  Transaction *rwtx = nullptr;
   std::vector<Transaction *> txs;
-  FreeList *freeList;
+  FreeList *freeList = nullptr;
   Stat stat;
 
   std::mutex batchMtx;
-  Batch *batch;
+  Batch *batch = nullptr;
 
   std::mutex rwlock;
   std::mutex metaLock;
   RWLock mmapLock;
   RWLock statLock;
 
-  bool readOnly;
+  bool readOnly = false;
 
-  std::function<int(char *, size_t, off_t)> writeAt;
+  std::function<int(char *, size_t, off_t)> writeAt = [this](char *buf, size_t len, off_t offset) {
+    auto ret = ::pwrite(fd, buf, len, offset);
+    if (ret == -1) {
+      perror("pwrite");
+    }
+    return ret;
+  };
  public:
   int FD() const {
     return fd;
@@ -189,6 +205,12 @@ struct Database {
   void removeTxn(Transaction *txn);
 
   int grow(size_t sz);
+  int init();
+  Page *pageInBuffer(char *ptr, size_t length, page_id pageId);
+  Database *openDB(const std::string &path, uint16_t mode, const Options &options = DEFAULTOPTION);
+  void closeDB();
+  int initMeta(off_t fileSize, off_t minMmapSize);
+  int mmapSize(off_t &targetSize);//targetSize is a hint. calculate the mmap size based on input param
 };
 
 struct BranchPageElement {
@@ -225,11 +247,11 @@ struct LeafPageElement {
 };
 
 struct Page {
-  page_id pageId;
-  uint16_t flag;
-  uint16_t count;
-  uint32_t overflow;
-  char *ptr;
+  page_id pageId = 0;
+  uint16_t flag = 0;
+  uint16_t count = 0;
+  uint32_t overflow = 0;
+  char *ptr = nullptr;
 
   LeafPageElement *getLeafPageElement(uint64_t index) const {
     assert(ptr);

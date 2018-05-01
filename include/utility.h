@@ -11,7 +11,7 @@ int file_Wlock(int fd);
 int file_Rlock(int fd);
 int file_Unlock(int fd);
 int mmap_db_file(Database *database, size_t sz);
-int munmap_db_file(Database *database, size_t sz);
+int munmap_db_file(Database *database);
 int file_data_sync(int fd);
 template<class T, class V, class CMP>
 size_t binary_search(T &target, V &key, CMP cmp, size_t e_p, bool &found) {
