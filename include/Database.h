@@ -46,7 +46,7 @@ struct MetaData {
   uint32_t version = 0;
   uint32_t pageSize = 0;
   uint32_t flags = 0;
-  bucketInFile root;
+  BucketHeader root;
   page_id freeList = 0;
   page_id pageId = 0;
   txn_id txnId = 0;
@@ -214,8 +214,8 @@ struct Database {
 };
 
 struct BranchPageElement {
-  uint32_t pos = 0;
-  uint32_t ksize = 0;
+  size_t pos = 0;
+  size_t ksize = 0;
   page_id pageId = 0;
 
   Item Key() const {
@@ -227,9 +227,9 @@ struct BranchPageElement {
 
 struct LeafPageElement {
   uint32_t flag = 0;
-  uint32_t pos = 0;
-  uint32_t ksize = 0;
-  uint32_t vsize = 0;
+  size_t pos = 0;
+  size_t ksize = 0;
+  size_t vsize = 0;
 
   Item read(uint32_t p, uint32_t s) const {
     const auto *ptr = reinterpret_cast<const char *>(this);

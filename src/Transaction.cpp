@@ -5,6 +5,7 @@
 #include <utility.h>
 #include <algorithm>
 #include <cstring>
+#include <bucket.h>
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Transaction::getPage(page_id pageId) {
@@ -43,8 +44,7 @@ void Transaction::init(Database *db) {
   this->db = db;
   metaData = MetaData::copyCreateFrom(db->meta());
   root = newBucket(this);
-  root->bucketPointer.reset(new bucketInFile);
-  *root->bucketPointer = metaData->root;
+  root->bucketHeader = metaData->root;
   if (writable) {
     metaData->txnId += 1;
   }

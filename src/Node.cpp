@@ -55,6 +55,12 @@ void Node::do_remove(const Item &key) {
 
   unbalanced = true;//need re-balance
 }
+
+/**
+ * \start                                                                  |end
+ * |page header| leafPageElement or branchPageElement ... | key & value ...|
+ * @return
+ */
 size_t Node::size() const {
   size_t result = PAGEHEADERSIZE;
   for (size_t i = 0; i < inodeList.size(); i++) {
@@ -137,6 +143,7 @@ void Node::del(const Item &key) {
   //need re-balance
   unbalanced = true;
 }
+//serialize itself into a given page
 void Node::write(Page *page) {
   if (isLeaf) {
     page->flag |= static_cast<uint32_t >(PageFlag::leafPageFlag);
@@ -154,27 +161,27 @@ void Node::write(Page *page) {
     return;
   }
 
-  auto cur = (char *) &page->ptr;
-  auto length = pageElementSize() * inodeList.size();
+  //|page header | leaf/branch element .... | kv pair ...  |
+  //|<-page start| &page->ptr               |<-contentPtr  |<-page end
+  auto contentPtr = (&page->ptr)[inodeList.size() * pageElementSize()];
   for (size_t i = 0; i < inodeList.size(); i++) {
     if (isLeaf) {
       auto item = page->getLeafPageElement(i);
-      item->pos = cur - (char *) &item;
+      item->pos = contentPtr - (char *) &item;
       item->flag = inodeList[i].flag;
       item->ksize = inodeList[i].key.length;
       item->vsize = inodeList[i].value.length;
     } else {
       auto item = page->getBranchPageElement(i);
-      item->pos = cur - (char *) &item;
+      item->pos = contentPtr - (char *) &item;
       item->ksize = inodeList[i].key.length;
       item->pageId = inodeList[i].pageId;
     }
 
-    assert(length >= inodeList[i].key.length + inodeList[i].value.length);
-    std::memcpy(cur, inodeList[i].key.pointer, inodeList[i].key.length);
-    cur += inodeList[i].key.length;
-    std::memcpy(cur, inodeList[i].value.pointer, inodeList[i].value.length);
-    cur += inodeList[i].value.length;
+    std::memcpy(contentPtr, inodeList[i].key.pointer, inodeList[i].key.length);
+    contentPtr += inodeList[i].key.length;
+    std::memcpy(contentPtr, inodeList[i].value.pointer, inodeList[i].value.length);
+    contentPtr += inodeList[i].value.length;
   }
 
 }

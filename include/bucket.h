@@ -18,9 +18,13 @@ const uint32_t MAXVALUESIZE = (1L << 31) - 2;
 const double MINFILLPERCENT = 0.1;
 const double MAXFILLPERCENT = 1.0;
 const double DEFAULTFILLPERCENT = 0.5;
-struct bucketInFile {
+struct BucketHeader {
   page_id root = 0;
   uint64_t sequence = 0;
+  void reset() {
+    root = 0;
+    sequence = 0;
+  }
 };
 
 class Page;
@@ -28,28 +32,22 @@ class Node;
 class Cursor;
 struct Bucket {
   Transaction *tx = nullptr;
-  Page *page = nullptr;
+  Page *page = nullptr;//useful for inline buckets, page points to beginning of the serialized value i.e. a page' header
   std::shared_ptr<Node> rootNode = nullptr;
-  std::unique_ptr<bucketInFile> bucketPointer;
+  BucketHeader bucketHeader;
   std::unordered_map<Item, std::shared_ptr<Bucket>> buckets;//subbucket cache. used if txn is writable. k:bucket name
   std::unordered_map<page_id, std::shared_ptr<Node>> nodes;//node cache. used if txn is writable
   double fillpercent = 0.5;
-
  public:
   Transaction *getTransaction() const {
     return tx;
   }
   page_id getRoot() const {
-    assert(bucketPointer);
-    return bucketPointer->root;
+    return bucketHeader.root;
   }
 
   bool isWritable() const {
     return tx->isWritable();
-  }
-
-  void setBucketPointer(std::unique_ptr<bucketInFile> ptr) {
-    bucketPointer = std::move(ptr);
   }
 
   void setRootNode(std::shared_ptr<Node> node) {
@@ -70,7 +68,7 @@ struct Bucket {
   void getPageNode(page_id pageId, std::shared_ptr<Node> &node, Page *&page);
   std::shared_ptr<Node> getNode(page_id pageId, std::shared_ptr<Node> parent);
 
-  std::unique_ptr<char[]> write(size_t *retSz = nullptr);
+  Item write();//serialize bucket into a byte array
 
   int for_each(std::function<int(const Item &, const Item &)>);
   void for_each_page(std::function<void(Page *, int)>);
@@ -91,6 +89,6 @@ struct Bucket {
   int spill();//write dirty pages
 };
 std::shared_ptr<Bucket> newBucket(Transaction *tx);
-const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::bucketInFile);
+const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::BucketHeader);
 }
 #endif //BOLTDB_IN_CPP_BUCKET_H

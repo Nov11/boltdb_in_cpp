@@ -37,6 +37,30 @@ struct TxStat {
   uint64_t writeTime = 0;
 };
 
+class MemoryPool {
+  std::vector<char *> arrays;
+ public:
+  ~MemoryPool() {
+    for (auto item : arrays) {
+      delete[] item;
+    }
+  }
+  char *allocateByteArray(size_t sz) {
+    auto ret = new char[sz];
+    for (size_t i = 0; i < sz; i++) {
+      ret[i] = 0;
+    }
+    arrays.push_back(ret);
+    return ret;
+  }
+  template<class T>
+  T *allocate() {
+    auto ret = allocateByteArray(sizeof(T));
+    new(ret) T();
+    return reinterpret_cast<T *>(ret);
+  }
+};
+
 struct Transaction {
   bool writable = false;
   bool managed = false;
@@ -48,6 +72,8 @@ struct Transaction {
   bool writeFlag = false;
   TxStat stats;
  public:
+  MemoryPool pool;
+
   bool isWritable() const {
     return writable;
   }
@@ -70,7 +96,7 @@ struct Transaction {
   std::shared_ptr<Bucket> createBucket(const Item &name);
   std::shared_ptr<Bucket> createBucketIfNotExists(const Item &name);
   int deleteBucket(const Item &name);
-  int for_each(std::function<int(const Item&name, Bucket* b)>);
+  int for_each(std::function<int(const Item &name, Bucket *b)>);
   void OnCommit(std::function<void()> fn);
   int commit();
   void rollback();
