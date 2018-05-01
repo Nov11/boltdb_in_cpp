@@ -5,9 +5,11 @@
 #ifndef BOLTDB_IN_CPP_TRANSACTION_H
 #define BOLTDB_IN_CPP_TRANSACTION_H
 #include <functional>
+#include <algorithm>
 #include <map>
 #include <vector>
 #include "boltDB_types.h"
+#include "MemoryPool.h"
 
 namespace boltDB_CPP {
 
@@ -35,30 +37,6 @@ struct TxStat {
 
   uint64_t writeCount = 0;
   uint64_t writeTime = 0;
-};
-
-class MemoryPool {
-  std::vector<char *> arrays;
- public:
-  ~MemoryPool() {
-    for (auto item : arrays) {
-      delete[] item;
-    }
-  }
-  char *allocateByteArray(size_t sz) {
-    auto ret = new char[sz];
-    for (size_t i = 0; i < sz; i++) {
-      ret[i] = 0;
-    }
-    arrays.push_back(ret);
-    return ret;
-  }
-  template<class T>
-  T *allocate() {
-    auto ret = allocateByteArray(sizeof(T));
-    new(ret) T();
-    return reinterpret_cast<T *>(ret);
-  }
 };
 
 struct Transaction {

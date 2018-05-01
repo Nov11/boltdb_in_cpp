@@ -112,6 +112,7 @@ std::shared_ptr<Node> Node::nextSibling() {
   }
   return parentNode->childAt(idx + 1);
 }
+
 void Node::put(const Item &oldKey, const Item &newKey, const Item &value, page_id pageId, uint32_t flag) {
   if (pageId >= bucket->getTransaction()->metaData->pageId) {
     assert(false);
@@ -131,6 +132,7 @@ void Node::put(const Item &oldKey, const Item &newKey, const Item &value, page_i
   ref.value = value;
   ref.pageId = pageId;
 }
+
 void Node::del(const Item &key) {
   bool found = false;
   auto ret = binary_search(inodeList, key, cmp_wrapper<Inode>, inodeList.size(), found);

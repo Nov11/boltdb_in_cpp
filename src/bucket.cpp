@@ -3,6 +3,7 @@
 //
 #include <memory>
 #include <cstring>
+#include <Transaction.h>
 #include "Database.h"
 #include "bucket.h"
 #include "Cursor.h"
@@ -18,8 +19,9 @@ std::shared_ptr<Bucket> newBucket(Transaction *tx_p) {
 
 Cursor *Bucket::createCursor() {
   tx->increaseCurserCount();
-  return new Cursor(this);
+  return tx->pool.allocate<Cursor>(this);
 }
+
 void Bucket::getPageNode(page_id pageId_p, std::shared_ptr<Node> &node_p, Page *&page_p) {
   node_p = nullptr;
   page_p = nullptr;
@@ -123,6 +125,7 @@ std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
 
   c.getNode()->put(key, key, putValue, 0, static_cast<uint32_t >(PageFlag::bucketLeafFlag));
 
+  //this is not inline bucket any more
   page = nullptr;
   return getBucketByName(key);
 }
