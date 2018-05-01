@@ -84,13 +84,13 @@ int Transaction::commit() {
   metaData->root.root = root->getRoot();
   auto pgid = metaData->pageId;
 
-  db->getFreeLIst()->free(metaData->txnId, db->getPage(metaData->freeList));
-  auto page = allocate((db->getFreeLIst()->size() / db->getPageSize()) + 1);
+  db->freeList.free(metaData->txnId, db->getPage(metaData->freeList));
+  auto page = allocate((db->freeList.size() / db->getPageSize()) + 1);
   if (page == nullptr) {
     rollback();
     return -1;
   }
-  if (db->freeList->write(page)) {
+  if (db->freeList.write(page)) {
     rollback();
     return -1;
   }
@@ -126,8 +126,8 @@ void Transaction::rollback() {
     return;
   }
   if (isWritable()) {
-    db->freeList->rollback(metaData->txnId);
-    db->freeList->reload(db->getPage(metaData->freeList));
+    db->freeList.rollback(metaData->txnId);
+    db->freeList.reload(db->getPage(metaData->freeList));
   }
   closeTxn();
 }

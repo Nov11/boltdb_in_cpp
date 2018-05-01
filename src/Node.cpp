@@ -261,7 +261,7 @@ size_t Node::splitIndex(size_t threshold, size_t &sz) {
 void Node::free() {
   if (pageId) {
     auto txn = bucket->getTransaction();
-    txn->db->getFreeLIst()->free(txn->metaData->txnId, txn->getPage(pageId));
+    txn->db->getFreeLIst().free(txn->metaData->txnId, txn->getPage(pageId));
     pageId = 0;
   }
 }
@@ -297,7 +297,7 @@ int Node::spill() {
 
   for (auto &item : nodes) {
     if (item->pageId > 0) {
-      tx->db->getFreeLIst()->free(tx->metaData->txnId, tx->getPage(item->pageId));
+      tx->db->getFreeLIst().free(tx->metaData->txnId, tx->getPage(item->pageId));
     }
 
     auto page = tx->allocate((size() / tx->db->getPageSize()) + 1);

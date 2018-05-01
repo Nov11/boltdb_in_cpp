@@ -140,7 +140,7 @@ struct Database {
   bool opened = false;
   Transaction *rwtx = nullptr;
   std::vector<Transaction *> txs;
-  FreeList *freeList = nullptr;
+  FreeList freeList;
   Stat stat;
 
   std::mutex batchMtx;
@@ -195,7 +195,7 @@ struct Database {
   }
 
   Page *getPage(page_id pageId);
-  FreeList *getFreeLIst();
+  FreeList& getFreeLIst();
 
   uint64_t getPageSize() const;
 

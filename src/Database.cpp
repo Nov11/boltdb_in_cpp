@@ -19,7 +19,7 @@ Page *boltDB_CPP::Database::getPage(page_id pageId) {
   uint64_t pos = pageId * pageSize;
   return reinterpret_cast<Page *>(&data[pos]);
 }
-FreeList *Database::getFreeLIst() {
+FreeList &Database::getFreeLIst() {
   return freeList;
 }
 uint64_t Database::getPageSize() const {
@@ -29,15 +29,18 @@ Page *Database::allocate(size_t count) {
   return nullptr;
 }
 MetaData *Database::meta() {
+  auto m0 = meta0;
+  auto m1 = meta1;
   if (meta0->txnId > meta1->txnId) {
-    std::swap(meta1, meta0);
+    m0 = meta1;
+    m1 = meta0;
   }
-  if (meta0->validate()) {
-    return meta0;
+  if (m0->validate()) {
+    return m0;
   }
 
-  if (meta1->validate()) {
-    return meta1;
+  if (m1->validate()) {
+    return m1;
   }
   assert(false);
 }
@@ -223,8 +226,7 @@ Database *Database::openDB(const std::string &path_p, uint16_t mode, const Optio
   }
 
   //init freelist
-  freeList = new FreeList;
-  freeList->read(getPage(meta()->freeList));
+  freeList.read(getPage(meta()->freeList));
   return nullptr;
 }
 void Database::closeDB() {
@@ -403,7 +405,7 @@ void FreeList::read(Page *page) {
   } else {
     pageIds.clear();
     page_id *ptr = reinterpret_cast<page_id *>(&page->ptr) + idx;
-    for (size_t i = idx; i < count; i++) {
+    for (size_t i = 0; i < count; i++) {
       pageIds.push_back(*ptr);
       ptr++;
     }

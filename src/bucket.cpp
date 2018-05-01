@@ -234,7 +234,7 @@ void Bucket::free() {
 
   for_each_page_node([this](Page *p, Node *n, int) {
     if (p) {
-      tx->db->getFreeLIst()->free(tx->metaData->txnId, p);
+      tx->db->freeList.free(tx->metaData->txnId, p);
     } else {
       assert(n);
       n->free();
