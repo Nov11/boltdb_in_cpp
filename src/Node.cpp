@@ -13,6 +13,7 @@ void Node::read(boltDB_CPP::Page *page) {
   assert(page);
   this->pageId = page->pageId;
   this->isLeaf = static_cast<bool>(page->flag & static_cast<int>(PageFlag::leafPageFlag));
+  this->inodeList.resize(page->count);
 
   for (size_t i = 0; i < page->count; i++) {
     auto item = this->inodeList[i];
@@ -36,11 +37,11 @@ void Node::read(boltDB_CPP::Page *page) {
     key.reset();
   }
 }
-std::shared_ptr<Node> Node::childAt(uint64_t index) {
+Node *Node::childAt(uint64_t index) {
   if (isLeaf) {
     assert(false);
   }
-  return bucket->getNode(inodeList[index].pageId, shared_from_this());
+  return bucket->getNode(inodeList[index].pageId, this);
 }
 void Node::do_remove(const Item &key) {
   bool found = false;
@@ -74,9 +75,9 @@ size_t Node::pageElementSize() const {
   }
   return BUCKETHEADERSIZE;
 }
-std::shared_ptr<Node> Node::root() {
+Node *Node::root() {
   if (parentNode == nullptr) {
-    return shared_from_this();
+    return this;
   }
   return parentNode->root();
 }
@@ -94,7 +95,7 @@ bool Node::sizeLessThan(size_t s) const {
   }
   return true;
 }
-size_t Node::childIndex(std::shared_ptr<Node> child) const {
+size_t Node::childIndex(Node *child) const {
   bool found = false;
   auto ret = binary_search(inodeList, child->key, cmp_wrapper<Inode>, inodeList.size(), found);
   return ret;
@@ -102,11 +103,11 @@ size_t Node::childIndex(std::shared_ptr<Node> child) const {
 size_t Node::numChildren() const {
   return inodeList.size();
 }
-std::shared_ptr<Node> Node::nextSibling() {
+Node *Node::nextSibling() {
   if (parentNode == nullptr) {
     return nullptr;
   }
-  auto idx = parentNode->childIndex(shared_from_this());
+  auto idx = parentNode->childIndex(this);
   if (idx == 0) {
     return nullptr;
   }
@@ -187,12 +188,13 @@ void Node::write(Page *page) {
   }
 
 }
-std::vector<std::shared_ptr<Node>> Node::split(size_t pageSize) {
-  std::vector<std::shared_ptr<Node>> result;
+std::vector<Node *> Node::split(size_t pageSize) {
+  std::vector<Node *> result;
 
-  auto cur = shared_from_this();
+  auto cur = this;
   while (true) {
-    std::shared_ptr<Node> a, b;
+    Node *a;
+    Node *b;
     splitTwo(pageSize, a, b);
     result.push_back(a);
     if (b == nullptr) {
@@ -204,10 +206,10 @@ std::vector<std::shared_ptr<Node>> Node::split(size_t pageSize) {
 }
 
 //used only inside split
-void Node::splitTwo(size_t pageSize, std::shared_ptr<Node> &a, std::shared_ptr<Node> &b) {
+void Node::splitTwo(size_t pageSize, Node *&a, Node *&b) {
   if (inodeList.size() <= MINKEYSPERPAGE * 2 || sizeLessThan(pageSize)) {
-    a.reset();
-    b.reset();
+    a = nullptr;
+    b = nullptr;
     return;
   }
 
@@ -226,12 +228,12 @@ void Node::splitTwo(size_t pageSize, std::shared_ptr<Node> &a, std::shared_ptr<N
 
   if (parentNode == nullptr) {
     //using share pointer to deal with this
-    parentNode = new Node;
+    parentNode = bucket->tx->pool.allocate<Node>();
     parentNode->bucket = bucket;
-    parentNode->children.push_back(shared_from_this());
+    parentNode->children.push_back(this);
   }
 
-  auto newNode = std::make_shared<Node>();
+  auto newNode = bucket->tx->pool.allocate<Node>();
   newNode->bucket = bucket;
   newNode->isLeaf = isLeaf;
   newNode->parentNode = parentNode;
@@ -265,7 +267,7 @@ void Node::free() {
     pageId = 0;
   }
 }
-void Node::removeChild(std::shared_ptr<Node> target) {
+void Node::removeChild(Node *target) {
   for (auto iter = children.begin(); iter != children.end(); iter++) {
     if (*iter == target) {
       children.erase(iter);
@@ -274,8 +276,36 @@ void Node::removeChild(std::shared_ptr<Node> target) {
   }
 }
 void Node::dereference() {
+  //<del>
   //node lives in heap
   //nothing to be done here
+  //</del>
+  //2 kinds of nodes lives in inodeslist
+  //1.value pointers to mmap address
+  //2.value pointers to heap/memory pool allocated object
+  //when remapping is needed, the first kind needs to be saved to somewhere.
+  //or it will pointing to undefined values after a new mmap
+  //the second case will not need to be saved
+  //may provide a method in memorypool to distinguish with pointer should be saved
+  //for now, just copy every value to memory pool
+  //duplicate values exist. they will be freed when memorypool clears itself
+
+  //clone current node's key
+  if (!key.empty()) {
+    key = key.clone(&bucket->tx->pool);
+  }
+
+  //clone current node's kv pairs
+  for (auto &item : inodeList) {
+    item.key = item.key.clone(&bucket->tx->pool);
+    item.value = item.value.clone(&bucket->tx->pool);
+  }
+
+  //do copy recursively
+  for (auto &child : children) {
+    child->dereference();
+  }
+
 }
 int Node::spill() {
   if (spilled) {
@@ -344,7 +374,7 @@ void Node::rebalance() {
   if (parentNode == nullptr) {
     //root node has only one branch, need to collapse it
     if (!isLeaf && inodeList.size() == 1) {
-      auto child = bucket->getNode(inodeList[0].pageId, shared_from_this());
+      auto child = bucket->getNode(inodeList[0].pageId, this);
       isLeaf = child->isLeaf;
       inodeList = child->inodeList;
       children = child->children;
@@ -364,7 +394,7 @@ void Node::rebalance() {
 
   if (numChildren() == 0) {
     parentNode->del(key);
-    parentNode->removeChild(shared_from_this());
+    parentNode->removeChild(this);
     bucket->nodes.erase(pageId);
     free();
     parentNode->rebalance();
@@ -373,7 +403,7 @@ void Node::rebalance() {
 
   assert(parentNode->numChildren() > 1);
 
-  if (parentNode->childIndex(shared_from_this()) == 0) {
+  if (parentNode->childIndex(this) == 0) {
     auto target = nextSibling();
 
     //this should move inodes of target into current node
@@ -408,18 +438,18 @@ void Node::rebalance() {
 
     std::copy(target->inodeList.begin(), target->inodeList.end(), std::back_inserter(inodeList));
     parentNode->del(this->key);
-    parentNode->removeChild(shared_from_this());
+    parentNode->removeChild(this);
     bucket->nodes.erase(this->pageId);
     this->free();
   }
 
   parentNode->rebalance();
 }
-std::shared_ptr<Node> Node::prevSibling() {
+Node *Node::prevSibling() {
   if (parentNode == nullptr) {
     return nullptr;
   }
-  auto idx = parentNode->childIndex(shared_from_this());
+  auto idx = parentNode->childIndex(this);
   if (idx == 0) {
     return nullptr;
   }

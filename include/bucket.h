@@ -33,10 +33,10 @@ class Cursor;
 struct Bucket {
   Transaction *tx = nullptr;
   Page *page = nullptr;//useful for inline buckets, page points to beginning of the serialized value i.e. a page' header
-  std::shared_ptr<Node> rootNode = nullptr;
+  Node* rootNode = nullptr;
   BucketHeader bucketHeader;
   std::unordered_map<Item, std::shared_ptr<Bucket>> buckets;//subbucket cache. used if txn is writable. k:bucket name
-  std::unordered_map<page_id, std::shared_ptr<Node>> nodes;//node cache. used if txn is writable
+  std::unordered_map<page_id, Node*> nodes;//node cache. used if txn is writable
   double fillpercent = 0.5;
  public:
   Transaction *getTransaction() const {
@@ -50,8 +50,8 @@ struct Bucket {
     return tx->isWritable();
   }
 
-  void setRootNode(std::shared_ptr<Node> node) {
-    rootNode = std::move(node);
+  void setRootNode(Node* node) {
+    rootNode = node;
   }
 
   double getFillPercent() const {
@@ -65,8 +65,8 @@ struct Bucket {
   std::shared_ptr<Bucket> createBucketIfNotExists(const Item &key);
   int deleteBucket(const Item &key);
 
-  void getPageNode(page_id pageId, std::shared_ptr<Node> &node, Page *&page);
-  std::shared_ptr<Node> getNode(page_id pageId, std::shared_ptr<Node> parent);
+  void getPageNode(page_id pageId, Node *&node, Page *&page);
+  Node* getNode(page_id pageId, Node *parent);
 
   Item write();//serialize bucket into a byte array
 

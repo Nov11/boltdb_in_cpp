@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <vector>
 #include <cassert>
+#include <cstring>
 namespace boltDB_CPP {
 
 /**
@@ -54,6 +55,11 @@ class MemoryPool {
   void deallocate(T *ptr) {
     char *cptr = reinterpret_cast<char *>(ptr);
     deallocateByteArray(cptr);
+  }
+  char *arrayCopy(const char *src, size_t len) {
+    auto ret = allocateByteArray(len);
+    std::memcpy(ret, src, len);
+    return ret;
   }
   MemoryPool operator=(const MemoryPool &) = delete;
   MemoryPool(const MemoryPool &) = delete;

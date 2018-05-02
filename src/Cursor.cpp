@@ -54,7 +54,7 @@ void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
 }
 
 void Cursor::search(const Item &key, page_id pageId) {
-  std::shared_ptr<Node> node;
+  Node *node = nullptr;
   Page *page = nullptr;
   bucket->getPageNode(pageId, node, page);
   if (page && (page->getFlag()
@@ -86,7 +86,7 @@ void Cursor::searchLeaf(const Item &key) {
     ref.index =
         static_cast<uint32_t >(binary_search(ref.node->inodeList,
                                              key,
-                                             cmp_wrapper<Inode >,
+                                             cmp_wrapper<Inode>,
                                              ref.node->inodeList.size(),
                                              found
         ));
@@ -101,9 +101,9 @@ void Cursor::searchLeaf(const Item &key) {
                                                    found
   ));
 }
-void Cursor::searchBranchNode(const Item &key, std::shared_ptr<Node> node) {
+void Cursor::searchBranchNode(const Item &key, Node *node) {
   bool found = false;
-  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode >, node->inodeList.size(), found);
+  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode>, node->inodeList.size(), found);
   if (!found && index > 0) {
     index--;
   }
@@ -143,7 +143,7 @@ void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
  * refactory this after main components are implemented
  * @return
  */
-std::shared_ptr<Node> Cursor::getNode() const {
+Node *Cursor::getNode() const {
   if (!stk.empty() && stk.top().node && stk.top().isLeaf()) {
     stk.top().node;
   }
@@ -157,7 +157,7 @@ std::shared_ptr<Node> Cursor::getNode() const {
   std::reverse(v.begin(), v.end());
 
   assert(!v.empty());
-  std::shared_ptr<Node> node = v[0].node;
+  Node *node = v[0].node;
   if (node == nullptr) {
     node = bucket->getNode(v[0].page->pageId, nullptr);
   }
@@ -217,7 +217,7 @@ void Cursor::do_first() {
     }
 
     Page *page = nullptr;
-    std::shared_ptr<Node> node;
+    Node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     stk.push(element);
@@ -238,7 +238,7 @@ void Cursor::do_last() {
     }
 
     Page *page = nullptr;
-    std::shared_ptr<Node> node = nullptr;
+    Node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     element.index = element.count() - 1;
@@ -315,7 +315,7 @@ void Cursor::last(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  std::shared_ptr<Node> node = nullptr;
+  Node *node = nullptr;
   bucket->getPageNode(bucket->getRoot(), node, page);
   ElementRef element{page, node};
   element.index = element.count() - 1;
@@ -332,7 +332,7 @@ void Cursor::first(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  std::shared_ptr<Node> node = nullptr;
+  Node *node = nullptr;
   bucket->getPageNode(bucket->getRoot(), node, page);
   ElementRef element{page, node};
 

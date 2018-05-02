@@ -22,7 +22,7 @@ Cursor *Bucket::createCursor() {
   return tx->pool.allocate<Cursor>(this);
 }
 
-void Bucket::getPageNode(page_id pageId_p, std::shared_ptr<Node> &node_p, Page *&page_p) {
+void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
   node_p = nullptr;
   page_p = nullptr;
 
@@ -50,16 +50,16 @@ void Bucket::getPageNode(page_id pageId_p, std::shared_ptr<Node> &node_p, Page *
 }
 
 //create a node from a page and associate it with a given parent
-std::shared_ptr<Node> Bucket::getNode(page_id pageId, std::shared_ptr<Node> parent) {
+Node* Bucket::getNode(page_id pageId, Node *parent) {
   auto iter = nodes.find(pageId);
   if (iter != nodes.end()) {
     return iter->second;
   }
 
-  auto node = std::make_shared<Node>();
+  auto node = tx->pool.allocate<Node>();
 
   node->bucket = this;
-  node->parentNode = parent.get();
+  node->parentNode = parent;
 
   if (parent == nullptr) {
     rootNode = node;
@@ -117,7 +117,7 @@ std::shared_ptr<Bucket> Bucket::createBucket(const Item &key) {
 
   //create an empty inline bucket
   auto bucket = Bucket();
-  bucket.rootNode = std::make_shared<Node>();
+  bucket.rootNode = tx->pool.allocate<Node>();
   rootNode->isLeaf = true;
 
   //todo:use memory pool to fix memory leak
@@ -251,11 +251,11 @@ void Bucket::for_each_page_node(std::function<void(Page *, Node *, int)> fn) {
   for_each_page_node_impl(getRoot(), 0, fn);
 }
 void Bucket::for_each_page_node_impl(page_id pid, int depth, std::function<void(Page *, Node *, int)> fn) {
-  std::shared_ptr<Node> node;
+  Node* node;
   Page *page;
   getPageNode(pid, node, page);
 
-  fn(page, node.get(), depth);
+  fn(page, node, depth);
   if (page) {
     if (isSet(page->flag, PageFlag::branchPageFlag)) {
       for (size_t i = 0; i < page->getCount(); i++) {

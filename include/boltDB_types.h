@@ -6,6 +6,7 @@
 #define BOLTDB_IN_CPP_BOLTDB_TYPES_H
 #include <cstdint>
 #include <functional>
+#include "MemoryPool.h"
 namespace boltDB_CPP {
 
 typedef uint64_t txn_id;
@@ -49,6 +50,11 @@ struct Item {
 
   bool empty() const {
     return length == 0;
+  }
+
+  Item clone(MemoryPool *pool) {
+    char *ptr = pool->arrayCopy(pointer, length);
+    return Item{ptr, length};
   }
 };
 }
