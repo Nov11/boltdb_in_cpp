@@ -458,7 +458,7 @@ int Bucket::spill() {
 
   rootNode = rootNode->root();
 
-  if (rootNode->pageId >= tx->metaData->pageId) {
+  if (rootNode->pageId >= tx->metaData->totalPageNumber) {
     assert(false);
   }
 

@@ -95,9 +95,9 @@ int Database::init() {
     m->magic = MAGIC;
     m->version = VERSION;
     m->pageSize = pageSize;
-    m->freeList = 2;
+    m->freeListPageNumber = 2;
     m->root.root = 3;
-    m->pageId = 4;
+    m->totalPageNumber = 4;
     m->txnId = i;
 
     //todo: add check sum
@@ -226,7 +226,7 @@ Database *Database::openDB(const std::string &path_p, uint16_t mode, const Optio
   }
 
   //init freelist
-  freeList.read(getPage(meta()->freeList));
+  freeList.read(getPage(meta()->freeListPageNumber));
   return nullptr;
 }
 void Database::closeDB() {
@@ -237,7 +237,7 @@ int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   OnClose{std::bind(&RWLock::writeUnlock, &mmapLock)};
 
   if (fileSize < pageSize * 2) {
-    //there should be at leat 2 page of meta page
+    //there should be at least 2 page of meta page
     return -1;
   }
 
@@ -247,6 +247,9 @@ int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   }
 
   //dereference before unmapping. deference?
+  //dereference means make a copy
+  //clone data which nodes are pointing to
+  //or on unmapping, these data points in nodes will be pointing to undefined value
   if (rwtx) {
     rwtx->root->dereference();
   }
@@ -263,6 +266,8 @@ int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   meta0 = getPage(0)->getMeta();
   meta1 = getPage(1)->getMeta();
 
+  //if one fails validation, it can be recovered from the other one.
+  //fail when both meta pages are broken
   if (!meta0->validate() && !meta1->validate()) {
     return -1;
   }
@@ -288,6 +293,63 @@ int Database::mmapSize(off_t &targetSize) {
   std::cerr << "not dealing with db file larger than 1GB now" << std::endl;
   exit(1);
   return 0;
+}
+int Database::update(std::function<int(Transaction *tx)> fn) {
+  if (beginRWTx()) {
+    return -1;
+  }
+  return 0;
+}
+
+//when commit a rw txn, rwlock must be released
+Transaction *Database::beginRWTx() {
+  //this property will only be set once
+  if (readOnly) {
+    return nullptr;
+  }
+
+  //unlock on commit/rollback; only one writer transaction at a time
+  rwlock.lock();
+
+  //exclusively update transaction
+  std::lock_guard<std::mutex> guard(metaLock);
+
+  //this needs to be protected under rwlock/not sure if it needs metaLock
+  if (!opened) {
+    rwlock.unlock();
+    return nullptr;
+  }
+  auto txn = txnPool.allocate<Transaction>();
+  txn->writable = true;
+  txn->init(this);
+  rwtx = txn;
+
+  //release pages of finished read only txns
+  auto minId = UINT64_MAX;
+  for (auto item : txs) {
+    minId = std::min(minId, item->metaData->txnId);
+  }
+
+  if (minId > 0) {
+    freeList.release(minId - 1);
+  }
+  return txn;
+}
+
+//when commit/abort a read only txn, mmaplock must be released
+Transaction *Database::beginTx() {
+  std::lock_guard<std::mutex> guard(metaLock);
+  mmapLock.readLock();
+  if (!opened) {
+    mmapLock.readUnlock();
+    return nullptr;
+  }
+
+  auto txn = txnPool.allocate<Transaction>();
+  txn->init(this);
+  txs.push_back(txn);
+
+  return txn;
 }
 
 void FreeList::free(txn_id tid, Page *page) {
@@ -370,12 +432,19 @@ page_id FreeList::allocate(size_t sz) {
 
   return 0;
 }
+
+/**
+ * release pages belong to txns of tid from zero to parameter tid
+ * @param tid : largest tid of txn whose pages are to be freed
+ */
 void FreeList::release(txn_id tid) {
   std::vector<page_id> list;
   for (auto iter = pending.begin(); iter != pending.end();) {
     if (iter->first <= tid) {
       std::copy(iter->second.begin(), iter->second.end(), std::back_inserter(list));
       iter = pending.erase(iter);
+    } else {
+      iter++;
     }
   }
 
@@ -493,10 +562,10 @@ bool MetaData::validate() {
   return true;
 }
 void MetaData::write(Page *page) {
-  if (root.root >= pageId) {
+  if (root.root >= totalPageNumber) {
     assert(false);
   }
-  if (freeList >= pageId) {
+  if (freeListPageNumber >= totalPageNumber) {
     assert(false);
   }
 

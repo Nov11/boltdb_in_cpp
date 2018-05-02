@@ -45,10 +45,10 @@ struct MetaData {
   uint32_t magic = 0;
   uint32_t version = 0;
   uint32_t pageSize = 0;
-  uint32_t flags = 0;
+  uint32_t reservedFlag = 0;
   BucketHeader root;
-  page_id freeList = 0;
-  page_id pageId = 0;
+  page_id freeListPageNumber = 0;
+  page_id totalPageNumber = 0;
   txn_id txnId = 0;
   uint64_t checkSum = 0;
   static MetaData *copyCreateFrom(MetaData *other) {
@@ -146,12 +146,14 @@ struct Database {
   std::mutex batchMtx;
   Batch *batch = nullptr;
 
-  std::mutex rwlock;
-  std::mutex metaLock;
+  //todo:use a more descriptive name
+  std::mutex rwlock;//this is writer's mutex. writers must acquire this lock before proceeding.
+  std::mutex metaLock;//this protects the database object.
   RWLock mmapLock;
   RWLock statLock;
 
   bool readOnly = false;
+  MemoryPool txnPool;
 
   std::function<int(char *, size_t, off_t)> writeAt = [this](char *buf, size_t len, off_t offset) {
     auto ret = ::pwrite(fd, buf, len, offset);
@@ -195,7 +197,7 @@ struct Database {
   }
 
   Page *getPage(page_id pageId);
-  FreeList& getFreeLIst();
+  FreeList &getFreeLIst();
 
   uint64_t getPageSize() const;
 
@@ -211,6 +213,9 @@ struct Database {
   void closeDB();
   int initMeta(off_t fileSize, off_t minMmapSize);
   int mmapSize(off_t &targetSize);//targetSize is a hint. calculate the mmap size based on input param
+  int update(std::function<int(Transaction *tx)> fn);
+  Transaction* beginRWTx();
+  Transaction* beginTx();
 };
 
 struct BranchPageElement {
@@ -226,7 +231,7 @@ struct BranchPageElement {
 };
 
 struct LeafPageElement {
-  uint32_t flag = 0;
+  uint32_t flag = 0;//is this element a bucket? yes:1 no:0
   size_t pos = 0;
   size_t ksize = 0;
   size_t vsize = 0;

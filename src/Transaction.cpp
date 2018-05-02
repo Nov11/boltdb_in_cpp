@@ -82,9 +82,9 @@ int Transaction::commit() {
   }
 
   metaData->root.root = root->getRoot();
-  auto pgid = metaData->pageId;
+  auto pgid = metaData->totalPageNumber;
 
-  db->freeList.free(metaData->txnId, db->getPage(metaData->freeList));
+  db->freeList.free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
   auto page = allocate((db->freeList.size() / db->getPageSize()) + 1);
   if (page == nullptr) {
     rollback();
@@ -95,10 +95,10 @@ int Transaction::commit() {
     return -1;
   }
 
-  metaData->freeList = page->pageId;
+  metaData->freeListPageNumber = page->pageId;
 
-  if (metaData->pageId > pgid) {
-    if (db->grow((metaData->pageId + 1) * db->getPageSize())) {
+  if (metaData->totalPageNumber > pgid) {
+    if (db->grow((metaData->totalPageNumber + 1) * db->getPageSize())) {
       rollback();
       return -1;
     }
@@ -127,7 +127,7 @@ void Transaction::rollback() {
   }
   if (isWritable()) {
     db->freeList.rollback(metaData->txnId);
-    db->freeList.reload(db->getPage(metaData->freeList));
+    db->freeList.reload(db->getPage(metaData->freeListPageNumber));
   }
   closeTxn();
 }

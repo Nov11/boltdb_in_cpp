@@ -115,7 +115,7 @@ Node *Node::nextSibling() {
 }
 
 void Node::put(const Item &oldKey, const Item &newKey, const Item &value, page_id pageId, uint32_t flag) {
-  if (pageId >= bucket->getTransaction()->metaData->pageId) {
+  if (pageId >= bucket->getTransaction()->metaData->totalPageNumber) {
     assert(false);
   }
   if (oldKey.length <= 0 || newKey.length <= 0) {
@@ -333,7 +333,7 @@ int Node::spill() {
     auto page = tx->allocate((size() / tx->db->getPageSize()) + 1);
     if (page == nullptr) { return -1; }
 
-    if (page->pageId >= tx->metaData->pageId) {
+    if (page->pageId >= tx->metaData->totalPageNumber) {
       assert(false);
     }
     item->pageId = page->pageId;
