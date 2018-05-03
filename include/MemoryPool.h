@@ -63,6 +63,7 @@ class MemoryPool {
   }
   MemoryPool operator=(const MemoryPool &) = delete;
   MemoryPool(const MemoryPool &) = delete;
+  MemoryPool() = default;
 };
 }
 #endif //BOLTDB_IN_CPP_MEMORYPOOL_H
