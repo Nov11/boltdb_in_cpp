@@ -19,5 +19,5 @@ set(SRC
         include/Cursor.h
         src/Node.cpp
         include/Node.h
-        include/MemoryPool.h)
+        include/MemoryPool.h include/bucketheader.h)
 add_library(boltDB_in_cpp ${SRC})

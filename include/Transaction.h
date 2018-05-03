@@ -10,7 +10,7 @@
 #include <vector>
 #include "boltDB_types.h"
 #include "MemoryPool.h"
-
+#include "bucket.h"
 namespace boltDB_CPP {
 
 class Database;
@@ -44,7 +44,7 @@ struct Transaction {
   bool managed = false;
   Database *db = nullptr;
   MetaData *metaData = nullptr;
-  std::shared_ptr<Bucket> root;
+  Bucket root;
   std::map<page_id, Page *> pageTable;
   std::vector<std::function<void()>> commitHandlers;
   bool writeFlag = false;

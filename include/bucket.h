@@ -8,9 +8,9 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include "bucketheader.h"
 #include "Database.h"
 #include "boltDB_types.h"
-#include "Transaction.h"
 
 namespace boltDB_CPP {
 const uint32_t MAXKEYSIZE = 32768;
@@ -18,18 +18,12 @@ const uint32_t MAXVALUESIZE = (1L << 31) - 2;
 const double MINFILLPERCENT = 0.1;
 const double MAXFILLPERCENT = 1.0;
 const double DEFAULTFILLPERCENT = 0.5;
-struct BucketHeader {
-  page_id root = 0;
-  uint64_t sequence = 0;
-  void reset() {
-    root = 0;
-    sequence = 0;
-  }
-};
+
 
 class Page;
 class Node;
 class Cursor;
+class Transaction;
 struct Bucket {
   Transaction *tx = nullptr;
   Page *page = nullptr;//useful for inline buckets, page points to beginning of the serialized value i.e. a page' header
@@ -46,9 +40,7 @@ struct Bucket {
     return bucketHeader.root;
   }
 
-  bool isWritable() const {
-    return tx->isWritable();
-  }
+  bool isWritable() const;
 
   void setRootNode(Node* node) {
     rootNode = node;

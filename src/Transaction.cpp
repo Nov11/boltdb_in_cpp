@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstring>
 #include <bucket.h>
+#include "Transaction.h"
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Transaction::getPage(page_id pageId) {
@@ -43,27 +44,28 @@ void Transaction::for_each_page(page_id pageId, int depth, std::function<void(Pa
 void Transaction::init(Database *db) {
   this->db = db;
   metaData = MetaData::copyCreateFrom(db->meta());
-  root = newBucket(this);
-  root->bucketHeader = metaData->root;
+  //todo:reset bucket using member function
+  root = *newBucket(this).get();
+  root.bucketHeader = metaData->root;
   if (writable) {
     metaData->txnId += 1;
   }
 }
 std::shared_ptr<Bucket> Transaction::getBucket(const Item &name) {
-  return root->getBucketByName(name);
+  return root.getBucketByName(name);
 }
 std::shared_ptr<Bucket> Transaction::createBucket(const Item &name) {
-  return root->createBucket(name);
+  return root.createBucket(name);
 }
 std::shared_ptr<Bucket> Transaction::createBucketIfNotExists(const Item &name) {
-  return root->createBucketIfNotExists(name);
+  return root.createBucketIfNotExists(name);
 }
 int Transaction::deleteBucket(const Item &name) {
-  root->deleteBucket(name);
+  root.deleteBucket(name);
 }
 int Transaction::for_each(std::function<int(const Item &name, Bucket *b)> fn) {
-  return root->for_each([&fn, this](const Item &k, const Item &v) -> int {
-    auto ret = fn(k, root->getBucketByName(k).get());
+  return root.for_each([&fn, this](const Item &k, const Item &v) -> int {
+    auto ret = fn(k, root.getBucketByName(k).get());
     return ret;
   });
 }
@@ -75,13 +77,13 @@ int Transaction::commit() {
     return -1;
   }
 
-  root->rebalance();
-  if (root->spill()) {
+  root.rebalance();
+  if (root.spill()) {
     rollback();
     return -1;
   }
 
-  metaData->root.root = root->getRoot();
+  metaData->root.root = root.getRoot();
   auto pgid = metaData->totalPageNumber;
 
   db->freeList.free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
@@ -146,8 +148,9 @@ void Transaction::closeTxn() {
   db = nullptr;
   metaData = nullptr;
   pageTable.clear();
-  root = std::make_shared<Bucket>();
-  root->tx = this;
+  //todo:add a reset member function
+  root = *std::make_shared<Bucket>().get();
+  root.tx = this;
 }
 int Transaction::writeMeta() {
   std::vector<char> tmp(db->getPageSize());

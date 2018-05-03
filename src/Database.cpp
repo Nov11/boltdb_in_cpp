@@ -12,6 +12,7 @@
 #include <cstring>
 #include <zconf.h>
 #include "utility.h"
+#include "Transaction.h"
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Database::getPage(page_id pageId) {
@@ -251,7 +252,7 @@ int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   //clone data which nodes are pointing to
   //or on unmapping, these data points in nodes will be pointing to undefined value
   if (rwtx) {
-    rwtx->root->dereference();
+    rwtx->root.dereference();
   }
 
   //unmapping current db file

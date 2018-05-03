@@ -12,9 +12,10 @@
 #include <cassert>
 #include <iostream>
 #include <string>
-#include "bucket.h"
+#include <map>
+#include "bucketheader.h"
+#include "boltDB_types.h"
 #include "rwlock.h"
-#include "Transaction.h"
 
 namespace boltDB_CPP {
 
@@ -40,6 +41,14 @@ const int DEFAULTMAXBATCHSIZE = 100;
 const int DEFAULTMAXBATCHDELAYMILLIIONSEC = 10;
 const int DEFAULTALLOCATIONSIZE = 16 * 1024 * 1024;
 const int DEFAULTPAGESIZE = 4096;// this value is returned by `getconf PAGE_SIZE` on ubuntu 17.10 x86_64
+
+/*
+ * forward declaration
+ */
+struct Page;
+struct Database;
+struct TxStat;
+struct Transaction;
 
 struct MetaData {
   uint32_t magic = 0;
@@ -110,8 +119,6 @@ struct Options {
   size_t initalMmapSize = 0;
 };
 const Options DEFAULTOPTION{};
-
-class Database;
 
 class Batch {
   Database *database;
@@ -214,8 +221,8 @@ struct Database {
   int initMeta(off_t fileSize, off_t minMmapSize);
   int mmapSize(off_t &targetSize);//targetSize is a hint. calculate the mmap size based on input param
   int update(std::function<int(Transaction *tx)> fn);
-  Transaction* beginRWTx();
-  Transaction* beginTx();
+  Transaction *beginRWTx();
+  Transaction *beginTx();
 };
 
 struct BranchPageElement {

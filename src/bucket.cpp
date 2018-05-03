@@ -50,7 +50,7 @@ void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
 }
 
 //create a node from a page and associate it with a given parent
-Node* Bucket::getNode(page_id pageId, Node *parent) {
+Node *Bucket::getNode(page_id pageId, Node *parent) {
   auto iter = nodes.find(pageId);
   if (iter != nodes.end()) {
     return iter->second;
@@ -251,7 +251,7 @@ void Bucket::for_each_page_node(std::function<void(Page *, Node *, int)> fn) {
   for_each_page_node_impl(getRoot(), 0, fn);
 }
 void Bucket::for_each_page_node_impl(page_id pid, int depth, std::function<void(Page *, Node *, int)> fn) {
-  Node* node;
+  Node *node;
   Page *page;
   getPageNode(pid, node, page);
 
@@ -464,6 +464,9 @@ int Bucket::spill() {
 
   bucketHeader.root = rootNode->pageId;
   return 0;
+}
+bool Bucket::isWritable() const {
+  return tx->isWritable();
 }
 
 }

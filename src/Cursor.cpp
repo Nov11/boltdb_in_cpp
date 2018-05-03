@@ -9,6 +9,8 @@
 #include "utility.h"
 #include "Cursor.h"
 #include "Database.h"
+#include "bucket.h"
+#include "Transaction.h"
 
 namespace boltDB_CPP {
 

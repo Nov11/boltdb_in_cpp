@@ -2,11 +2,13 @@
 // Created by c6s on 18-4-27.
 //
 
-#include <Database.h>
+#include "Database.h"
 #include <utility.h>
 #include <cstring>
 #include <algorithm>
 #include "Node.h"
+#include "bucket.h"
+#include "Transaction.h"
 namespace boltDB_CPP {
 void Node::read(boltDB_CPP::Page *page) {
   //this is called inside a function, should not receive nullptr
