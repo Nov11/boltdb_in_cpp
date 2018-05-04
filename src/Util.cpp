@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <zconf.h>
 #include <cerrno>
-#include "utility.h"
+#include "Util.h"
 #include "Database.h"
 
 namespace boltDB_CPP {

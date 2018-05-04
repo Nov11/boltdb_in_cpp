@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <vector>
 #include <stack>
-#include "boltDB_types.h"
+#include "Types.h"
 namespace boltDB_CPP {
 class Page;
 class Node;

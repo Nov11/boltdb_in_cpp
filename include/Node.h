@@ -6,8 +6,8 @@
 #define BOLTDB_IN_CPP_NODE_H
 #include <string>
 #include <vector>
-#include "boltDB_types.h"
-#include "utility.h"
+#include "Types.h"
+#include "Util.h"
 namespace boltDB_CPP {
 class Node;
 typedef std::vector<Node *> NodeList;
@@ -15,6 +15,10 @@ typedef std::vector<Node *> NodeList;
 //this is a pointer to element. The element can be in a page or not added to a page yet.
 //1.points to an element in a page
 //2.points to an element not yet in a page
+//this can be pointing to kv pair. in this case, pageId is meaningless.
+//if the inode is comprised in a branch node, then pageId is the page starts with key value equals to 'key' member
+//and the value is meaningless.
+//may use an union to wrap up pageId and value
 struct Inode {
   uint32_t flag = 0;
   page_id pageId = 0;

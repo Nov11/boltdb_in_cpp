@@ -4,7 +4,7 @@
 
 #ifndef BOLTDB_IN_CPP_UTILITY_H
 #define BOLTDB_IN_CPP_UTILITY_H
-#include "boltDB_types.h"
+#include "Types.h"
 #include "Database.h"
 namespace boltDB_CPP {
 int file_Wlock(int fd);

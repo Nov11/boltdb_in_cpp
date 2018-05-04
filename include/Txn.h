@@ -8,13 +8,13 @@
 #include <algorithm>
 #include <map>
 #include <vector>
-#include "boltDB_types.h"
+#include "Types.h"
 #include "MemoryPool.h"
-#include "bucket.h"
+#include "Bucket.h"
 namespace boltDB_CPP {
 
 class Database;
-class MetaData;
+class Meta;
 class Bucket;
 class Page;
 class Node;
@@ -39,13 +39,13 @@ struct TxStat {
   uint64_t writeTime = 0;
 };
 
-struct Transaction {
+struct Txn {
   bool writable = false;
   bool managed = false;
   Database *db = nullptr;
-  MetaData *metaData = nullptr;
-  Bucket root;
-  std::map<page_id, Page *> pageTable;
+  Meta *metaData = nullptr;
+  Bucket rootBucket;
+  std::map<page_id, Page *> dirtyPageTable; //this is dirty page table
   std::vector<std::function<void()>> commitHandlers;
   bool writeFlag = false;
   TxStat stats;
@@ -70,9 +70,9 @@ struct Transaction {
   void for_each_page(page_id pageId, int depth, std::function<void(Page *, int)>);
 
   void init(Database *db);
-  std::shared_ptr<Bucket> getBucket(const Item &name);
-  std::shared_ptr<Bucket> createBucket(const Item &name);
-  std::shared_ptr<Bucket> createBucketIfNotExists(const Item &name);
+  Bucket *getBucket(const Item &name);
+  Bucket *createBucket(const Item &name);
+  Bucket *createBucketIfNotExists(const Item &name);
   int deleteBucket(const Item &name);
   int for_each(std::function<int(const Item &name, Bucket *b)>);
   void OnCommit(std::function<void()> fn);
@@ -81,6 +81,8 @@ struct Transaction {
   void closeTxn();
   int writeMeta();
   int write();
+  bool freelistcheck();
+  bool checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable, std::map<page_id, bool> &freed);
 };
 
 }

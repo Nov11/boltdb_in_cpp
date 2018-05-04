@@ -8,9 +8,9 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
-#include "bucketheader.h"
+#include "Bucketheader.h"
 #include "Database.h"
-#include "boltDB_types.h"
+#include "Types.h"
 
 namespace boltDB_CPP {
 const uint32_t MAXKEYSIZE = 32768;
@@ -23,17 +23,17 @@ const double DEFAULTFILLPERCENT = 0.5;
 class Page;
 class Node;
 class Cursor;
-class Transaction;
+class Txn;
 struct Bucket {
-  Transaction *tx = nullptr;
+  Txn *tx = nullptr;
   Page *page = nullptr;//useful for inline buckets, page points to beginning of the serialized value i.e. a page' header
   Node* rootNode = nullptr;
   BucketHeader bucketHeader;
-  std::unordered_map<Item, std::shared_ptr<Bucket>> buckets;//subbucket cache. used if txn is writable. k:bucket name
+  std::unordered_map<Item, Bucket*> buckets;//subbucket cache. used if txn is writable. k:bucket name
   std::unordered_map<page_id, Node*> nodes;//node cache. used if txn is writable
   double fillpercent = 0.5;
  public:
-  Transaction *getTransaction() const {
+  Txn *getTransaction() const {
     return tx;
   }
   page_id getRoot() const {
@@ -51,10 +51,10 @@ struct Bucket {
   }
 
   Cursor *createCursor();
-  std::shared_ptr<Bucket> getBucketByName(const Item &searchKey);
-  std::shared_ptr<Bucket> openBucket(const Item &value);
-  std::shared_ptr<Bucket> createBucket(const Item &key);
-  std::shared_ptr<Bucket> createBucketIfNotExists(const Item &key);
+  Bucket* getBucketByName(const Item &searchKey);
+  Bucket* openBucket(const Item &value);
+  Bucket* createBucket(const Item &key);
+  Bucket* createBucketIfNotExists(const Item &key);
   int deleteBucket(const Item &key);
 
   void getPageNode(page_id pageId, Node *&node, Page *&page);
@@ -77,10 +77,11 @@ struct Bucket {
   int setSequence(uint64_t v);
   int nextSequence(uint64_t &v);
   int maxInlineBucketSize();
-  bool inlinable();
+  bool inlineable();
   int spill();//write dirty pages
+  void reset();
 };
-std::shared_ptr<Bucket> newBucket(Transaction *tx);
+Bucket* newBucket(Txn *tx);
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::BucketHeader);
 }
 #endif //BOLTDB_IN_CPP_BUCKET_H

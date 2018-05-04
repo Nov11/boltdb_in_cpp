@@ -6,11 +6,11 @@
 #include <iostream>
 #include <algorithm>
 #include "Node.h"
-#include "utility.h"
+#include "Util.h"
 #include "Cursor.h"
 #include "Database.h"
-#include "bucket.h"
-#include "Transaction.h"
+#include "Bucket.h"
+#include "Txn.h"
 
 namespace boltDB_CPP {
 
@@ -278,8 +278,12 @@ void Cursor::seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag)
   do_seek(searchKey, key, value, flag);
   auto &ref = stk.top();
   if (ref.index >= ref.count()) {
-    do_next(key, value, flag);
+    flag = 0;
+    key.reset();
+    value.reset();
+    return;
   }
+  keyValue(key, value, flag);
 }
 void Cursor::prev(Item &key, Item &value) {
   key.reset();

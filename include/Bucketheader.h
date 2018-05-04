@@ -4,7 +4,7 @@
 
 #ifndef BOLTDB_IN_CPP_BUCKETHEADER_H
 #define BOLTDB_IN_CPP_BUCKETHEADER_H
-#include "boltDB_types.h"
+#include "Types.h"
 namespace boltDB_CPP {
 struct BucketHeader {
   page_id root = 0;

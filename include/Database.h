@@ -13,9 +13,9 @@
 #include <iostream>
 #include <string>
 #include <map>
-#include "bucketheader.h"
-#include "boltDB_types.h"
-#include "rwlock.h"
+#include "Bucketheader.h"
+#include "Types.h"
+#include "RWLock.h"
 
 namespace boltDB_CPP {
 
@@ -48,32 +48,10 @@ const int DEFAULTPAGESIZE = 4096;// this value is returned by `getconf PAGE_SIZE
 struct Page;
 struct Database;
 struct TxStat;
-struct Transaction;
+struct Txn;
+struct Meta;
 
-struct MetaData {
-  uint32_t magic = 0;
-  uint32_t version = 0;
-  uint32_t pageSize = 0;
-  uint32_t reservedFlag = 0;
-  BucketHeader root;
-  page_id freeListPageNumber = 0;
-  page_id totalPageNumber = 0;
-  txn_id txnId = 0;
-  uint64_t checkSum = 0;
-  static MetaData *copyCreateFrom(MetaData *other) {
-    if (other == nullptr) {
-      return other;
-    }
-    auto ret = new MetaData;
-    //member wise copy
-    *ret = *other;
-    return ret;
-  }
-  bool validate();
-//  uint64_t sum64();
 
-  void write(Page *page);
-};
 
 struct FreeList {
   std::vector<page_id> pageIds;//free & available
@@ -94,6 +72,7 @@ struct FreeList {
   int write(Page *page);
   void reindex();
   void reload(Page *page);
+
 };
 
 struct Stat {
@@ -141,12 +120,12 @@ struct Database {
   void *dataref = nullptr;//readonly . this is mmap data
   char(*data)[MAXMAPSIZE];//data is a pointer to block of memory if sizeof MAXMAPSIZE
   uint64_t dataSize = 0;
-  MetaData *meta0 = nullptr;
-  MetaData *meta1 = nullptr;
+  Meta *meta0 = nullptr;
+  Meta *meta1 = nullptr;
   uint32_t pageSize = DEFAULTPAGESIZE;
   bool opened = false;
-  Transaction *rwtx = nullptr;
-  std::vector<Transaction *> txs;
+  Txn *rwtx = nullptr;
+  std::vector<Txn *> txs;
   FreeList freeList;
   Stat stat;
 
@@ -210,8 +189,8 @@ struct Database {
 
   Page *allocate(size_t count);
 
-  MetaData *meta();
-  void removeTxn(Transaction *txn);
+  Meta *meta();
+  void removeTxn(Txn *txn);
 
   int grow(size_t sz);
   int init();
@@ -220,9 +199,9 @@ struct Database {
   void closeDB();
   int initMeta(off_t fileSize, off_t minMmapSize);
   int mmapSize(off_t &targetSize);//targetSize is a hint. calculate the mmap size based on input param
-  int update(std::function<int(Transaction *tx)> fn);
-  Transaction *beginRWTx();
-  Transaction *beginTx();
+  int update(std::function<int(Txn *tx)> fn);
+  Txn *beginRWTx();
+  Txn *beginTx();
 };
 
 struct BranchPageElement {
@@ -277,12 +256,6 @@ struct Page {
     return const_cast<BranchPageElement *> (&list[index]);
   }
 
-  page_id getPageId() const {
-    return pageId;
-  }
-  void setPageId(page_id pageId) {
-    Page::pageId = pageId;
-  }
   uint16_t getFlag() const {
     return flag;
   }
@@ -292,24 +265,9 @@ struct Page {
   uint16_t getCount() const {
     return count;
   }
-  void setCount(uint16_t count) {
-    Page::count = count;
-  }
-  uint32_t getOverflow() const {
-    return overflow;
-  }
-  void setOverflow(uint32_t overflow) {
-    Page::overflow = overflow;
-  }
-  char *getPtr() const {
-    return ptr;
-  }
-  void setPtr(char *ptr) {
-    Page::ptr = ptr;
-  }
 
-  MetaData *getMeta() {
-    return reinterpret_cast<MetaData *>(&ptr);
+  Meta *getMeta() {
+    return reinterpret_cast<Meta *>(&ptr);
   }
 };
 

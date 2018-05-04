@@ -2,13 +2,14 @@
 // Created by c6s on 18-4-27.
 //
 
-#include "Database.h"
-#include <utility.h>
 #include <cstring>
 #include <algorithm>
 #include "Node.h"
-#include "bucket.h"
-#include "Transaction.h"
+#include "Database.h"
+#include "Util.h"
+#include "Bucket.h"
+#include "Txn.h"
+#include "Meta.h"
 namespace boltDB_CPP {
 void Node::read(boltDB_CPP::Page *page) {
   //this is called inside a function, should not receive nullptr
@@ -361,6 +362,10 @@ int Node::spill() {
   }
   return 0;
 }
+
+/**
+ * this should be named by 'merge sibling'
+ */
 void Node::rebalance() {
   if (!unbalanced) {
     return;
@@ -375,6 +380,7 @@ void Node::rebalance() {
 
   if (parentNode == nullptr) {
     //root node has only one branch, need to collapse it
+    //assign current node to child, and remove chlid node
     if (!isLeaf && inodeList.size() == 1) {
       auto child = bucket->getNode(inodeList[0].pageId, this);
       isLeaf = child->isLeaf;
@@ -383,6 +389,7 @@ void Node::rebalance() {
 
       for (auto &item : inodeList) {
         auto iter = bucket->nodes.find(item.pageId);
+        //what about those nodes that are not cached?
         if (iter != bucket->nodes.end()) {
           iter->second->parentNode = this;
         }
@@ -410,6 +417,8 @@ void Node::rebalance() {
 
     //this should move inodes of target into current node
     //and re set up between node's parent&child link
+
+    //set sibling node's children's parent to current node
     for (auto &item : target->inodeList) {
       auto iter = bucket->nodes.find(item.pageId);
       if (iter != bucket->nodes.end()) {
@@ -420,7 +429,9 @@ void Node::rebalance() {
       }
     }
 
+    //copy sibling node's children to current node
     std::copy(target->inodeList.begin(), target->inodeList.end(), std::back_inserter(inodeList));
+    //remove sibling node
     parentNode->del(target->key);
     parentNode->removeChild(target);
     bucket->nodes.erase(target->pageId);
@@ -445,6 +456,7 @@ void Node::rebalance() {
     this->free();
   }
 
+  //as parent node has one element removed, re-balance it
   parentNode->rebalance();
 }
 Node *Node::prevSibling() {

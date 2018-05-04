@@ -6,13 +6,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <Database.h>
 #include <algorithm>
 #include <utility>
 #include <cstring>
 #include <zconf.h>
-#include "utility.h"
-#include "Transaction.h"
+#include "Database.h"
+#include "Util.h"
+#include "Txn.h"
+#include "Meta.h"
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Database::getPage(page_id pageId) {
@@ -29,7 +30,7 @@ uint64_t Database::getPageSize() const {
 Page *Database::allocate(size_t count) {
   return nullptr;
 }
-MetaData *Database::meta() {
+Meta *Database::meta() {
   auto m0 = meta0;
   auto m1 = meta1;
   if (meta0->txnId > meta1->txnId) {
@@ -45,7 +46,7 @@ MetaData *Database::meta() {
   }
   assert(false);
 }
-void Database::removeTxn(Transaction *txn) {
+void Database::removeTxn(Txn *txn) {
   mmapLock.readUnlock();
   metaLock.lock();
 
@@ -252,7 +253,7 @@ int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   //clone data which nodes are pointing to
   //or on unmapping, these data points in nodes will be pointing to undefined value
   if (rwtx) {
-    rwtx->root.dereference();
+    rwtx->rootBucket.dereference();
   }
 
   //unmapping current db file
@@ -295,7 +296,7 @@ int Database::mmapSize(off_t &targetSize) {
   exit(1);
   return 0;
 }
-int Database::update(std::function<int(Transaction *tx)> fn) {
+int Database::update(std::function<int(Txn *tx)> fn) {
   if (beginRWTx()) {
     return -1;
   }
@@ -303,7 +304,7 @@ int Database::update(std::function<int(Transaction *tx)> fn) {
 }
 
 //when commit a rw txn, rwlock must be released
-Transaction *Database::beginRWTx() {
+Txn *Database::beginRWTx() {
   //this property will only be set once
   if (readOnly) {
     return nullptr;
@@ -320,7 +321,7 @@ Transaction *Database::beginRWTx() {
     rwlock.unlock();
     return nullptr;
   }
-  auto txn = txnPool.allocate<Transaction>();
+  auto txn = txnPool.allocate<Txn>();
   txn->writable = true;
   txn->init(this);
   rwtx = txn;
@@ -338,7 +339,7 @@ Transaction *Database::beginRWTx() {
 }
 
 //when commit/abort a read only txn, mmaplock must be released
-Transaction *Database::beginTx() {
+Txn *Database::beginTx() {
   std::lock_guard<std::mutex> guard(metaLock);
   mmapLock.readLock();
   if (!opened) {
@@ -346,7 +347,7 @@ Transaction *Database::beginTx() {
     return nullptr;
   }
 
-  auto txn = txnPool.allocate<Transaction>();
+  auto txn = txnPool.allocate<Txn>();
   txn->init(this);
   txs.push_back(txn);
 
@@ -548,35 +549,6 @@ void FreeList::reload(Page *page) {
   reindex();
 }
 
-bool MetaData::validate() {
-  if (magic != MAGIC) {
-    return false;
-  }
-
-  if (version != VERSION) {
-    return false;
-  }
-
-//  if (checkSum != 0 && checkSum != sum64()) {
-//    return false;
-//  }
-  return true;
-}
-void MetaData::write(Page *page) {
-  if (root.root >= totalPageNumber) {
-    assert(false);
-  }
-  if (freeListPageNumber >= totalPageNumber) {
-    assert(false);
-  }
-
-  page->pageId = txnId % 2;
-  page->flag |= static_cast<uint32_t >(PageFlag::metaPageFlag);
-
-  checkSum = 0;
-
-  std::memcpy(page->getMeta(), this, sizeof(MetaData));
-}
 //uint64_t MetaData::sum64() {
 //
 //  return 0;

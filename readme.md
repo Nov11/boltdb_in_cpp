@@ -15,7 +15,7 @@
 - [x] page
 - [x] cursor
 - [x] bucket
-- [ ] tx
+- [x] tx
 - [x] freelist
 - [ ] db
 - [ ] test cases
