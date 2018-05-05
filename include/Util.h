@@ -87,5 +87,5 @@ std::vector<boltDB_CPP::page_id> merge(const std::vector<boltDB_CPP::page_id> &a
   mergePageIds(result, a, b);
   return result;
 }
-
+}
 #endif //BOLTDB_IN_CPP_UTILITY_H

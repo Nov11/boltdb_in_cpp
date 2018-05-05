@@ -5,9 +5,7 @@
 #ifndef BOLTDB_IN_CPP_BUCKET_H
 #define BOLTDB_IN_CPP_BUCKET_H
 
-#include <memory>
 #include <unordered_map>
-#include <utility>
 #include "Bucketheader.h"
 #include "Database.h"
 #include "Types.h"
