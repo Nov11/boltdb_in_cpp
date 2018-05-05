@@ -45,11 +45,11 @@ int cmp_wrapper(const T &t, const Item &p) {
   return -1;
 }
 
-template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args &&... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-}
+//template<typename T, typename... Args>
+//std::unique_ptr<T> make_unique(Args &&... args) {
+//  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+//}
+//}
 
 void mergePageIds(std::vector<boltDB_CPP::page_id> &dest,
                   const std::vector<boltDB_CPP::page_id> &a,
