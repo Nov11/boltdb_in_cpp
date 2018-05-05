@@ -129,7 +129,7 @@ void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
     decltype(stk) tmp;
     swap(stk, tmp);
   }
-  search(searchKey, bucket->getRoot());
+  search(searchKey, bucket->getRootPage());
 
   auto &ref = stk.top();
   if (ref.index >= ref.count()) {
@@ -322,7 +322,7 @@ void Cursor::last(Item &key, Item &value) {
   }
   Page *page = nullptr;
   Node *node = nullptr;
-  bucket->getPageNode(bucket->getRoot(), node, page);
+  bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
   element.index = element.count() - 1;
   stk.push(element);
@@ -339,7 +339,7 @@ void Cursor::first(Item &key, Item &value) {
   }
   Page *page = nullptr;
   Node *node = nullptr;
-  bucket->getPageNode(bucket->getRoot(), node, page);
+  bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
 
   stk.push(element);

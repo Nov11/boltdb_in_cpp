@@ -255,7 +255,7 @@ void Bucket::for_each_page_node(std::function<void(Page *, Node *, int)> fn) {
     fn(page, nullptr, 0);
     return;
   }
-  for_each_page_node_impl(getRoot(), 0, fn);
+  for_each_page_node_impl(getRootPage(), 0, fn);
 }
 
 void Bucket::for_each_page_node_impl(page_id pid, int depth, std::function<void(Page *, Node *, int)> fn) {
@@ -376,7 +376,7 @@ int Bucket::setSequence(uint64_t v) {
     return -1;
   }
   if (rootNode == nullptr) {
-    getNode(getRoot(), nullptr);
+    getNode(getRootPage(), nullptr);
   }
 
   bucketHeader.sequence = v;
@@ -388,7 +388,7 @@ int Bucket::nextSequence(uint64_t &v) {
     return -1;
   }
   if (rootNode == nullptr) {
-    getNode(getRoot(), nullptr);
+    getNode(getRootPage(), nullptr);
   }
   bucketHeader.sequence++;
   v = bucketHeader.sequence;
@@ -401,7 +401,7 @@ void Bucket::for_each_page(std::function<void(Page *, int)> fn) {
     return;
   }
 
-  tx->for_each_page(getRoot(), 0, fn);
+  tx->for_each_page(getRootPage(), 0, fn);
 }
 
 int Bucket::maxInlineBucketSize() {

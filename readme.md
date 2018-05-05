@@ -17,7 +17,7 @@
 - [x] bucket
 - [x] tx
 - [x] freelist
-- [ ] db
+- [x] db
 - [ ] test cases
 
 ### layouts
@@ -35,3 +35,11 @@
 * branch node serialized:  
 |page header | branch element .... | kv pair ...  |
 
+### mvcc
+1. isolation level(close to) : read committed
+2. exclusive remapping 
+3. no exclusion on writing meta page
+
+### great resource:
+[a series of source code reading blogs(by oceanken)](https://www.jianshu.com/p/b86a69892990)
+[bucket data structure explanation (2016)](http://www.d-kai.me/boltdb%E4%B9%8Bbucket%E4%B8%80/)

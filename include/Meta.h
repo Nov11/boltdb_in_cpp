@@ -10,7 +10,7 @@ struct Meta {
   uint32_t version = 0;
   uint32_t pageSize = 0;
   uint32_t reservedFlag = 0;
-  BucketHeader root;
+  BucketHeader rootBucketHeader;
   page_id freeListPageNumber = 0;
   page_id totalPageNumber = 0;
   txn_id txnId = 0;

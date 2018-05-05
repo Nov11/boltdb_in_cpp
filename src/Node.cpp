@@ -388,10 +388,16 @@ void Node::rebalance() {
       children = child->children;
 
       for (auto &item : inodeList) {
+        //branch node will have a meaningful value in pageId field
         auto iter = bucket->nodes.find(item.pageId);
         //what about those nodes that are not cached?
+        //only in memory nodes will be write out to db file
+        //that means if a branch node is not found/not accessed before
+        //there should be something unexpected happening
         if (iter != bucket->nodes.end()) {
           iter->second->parentNode = this;
+        } else {
+          assert(false);
         }
       }
 
@@ -399,6 +405,8 @@ void Node::rebalance() {
       bucket->nodes.erase(child->pageId);
       child->free();
     }
+
+    return;
   }
 
   if (numChildren() == 0) {

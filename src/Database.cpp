@@ -27,9 +27,7 @@ FreeList &Database::getFreeLIst() {
 uint64_t Database::getPageSize() const {
   return pageSize;
 }
-Page *Database::allocate(size_t count) {
-  return nullptr;
-}
+
 Meta *Database::meta() {
   auto m0 = meta0;
   auto m1 = meta1;
@@ -72,9 +70,11 @@ int Database::grow(size_t sz) {
   }
 
   if (!noGrowSync && !readOnly) {
+    //increase file's size
     if (ftruncate(fd, sz)) {
       return -1;
     }
+    //make sure that file size is written into metadata
     if (fsync(fd)) {
       return -1;
     }
@@ -98,7 +98,7 @@ int Database::init() {
     m->version = VERSION;
     m->pageSize = pageSize;
     m->freeListPageNumber = 2;
-    m->root.root = 3;
+    m->rootBucketHeader.root = 3;
     m->totalPageNumber = 4;
     m->txnId = i;
 
@@ -232,8 +232,32 @@ Database *Database::openDB(const std::string &path_p, uint16_t mode, const Optio
   return nullptr;
 }
 void Database::closeDB() {
-
+  std::lock_guard<std::mutex> guard1(rwlock);
+  std::lock_guard<std::mutex> guard2(metaLock);
+  mmapLock.readLock();
+  do_closeDB();
+  mmapLock.readUnlock();
 }
+
+void Database::do_closeDB() {
+  if (!opened) {
+    return;
+  }
+
+  opened = false;
+  freeList.reset();
+  munmap_db_file(this);
+
+  if (fd) {
+    if (!readOnly) {
+      file_Unlock(fd);
+    }
+    close(fd);
+    fd = -1;
+  }
+  path.clear();
+}
+
 int Database::initMeta(off_t fileSize, off_t minMmapSize) {
   mmapLock.writeLock();
   OnClose{std::bind(&RWLock::writeUnlock, &mmapLock)};
@@ -297,10 +321,19 @@ int Database::mmapSize(off_t &targetSize) {
   return 0;
 }
 int Database::update(std::function<int(Txn *tx)> fn) {
-  if (beginRWTx()) {
+  auto tx = beginRWTx();
+  if (tx == nullptr) {
     return -1;
   }
-  return 0;
+  tx->managed = true;
+  auto ret = fn(tx);
+  tx->managed = false;
+  if (ret != 0) {
+    tx->rollback();
+    return -1;
+  }
+
+  return tx->commit();
 }
 
 //when commit a rw txn, rwlock must be released
@@ -354,7 +387,68 @@ Txn *Database::beginTx() {
   return txn;
 }
 
+Page *Database::allocate(size_t count, Txn *txn) {
+  //buffer len for continuous page
+  size_t len = count * pageSize;
+  assert(count < UINT32_MAX);
+  //allocate memory for these pages
+  auto page = reinterpret_cast<Page *>(txn->pool.allocateByteArray(len));
+  //set up overflow. overflow + 1 is the total page count
+  page->overflow = static_cast<uint32_t >(count) - 1;
+  //set up page id
+
+  //1.allocate page numbers from freelist
+  auto pid = freeList.allocate(count);
+  if (pid != 0) {
+    page->pageId = pid;
+    return page;
+  }
+
+  //2.need to expand mmap file
+  page->pageId = rwtx->metaData->totalPageNumber;
+  //no sure what the '1' indicates
+  size_t minLen = (page->pageId + count + 1) * pageSize;
+  if (minLen > dataSize) {
+    struct stat stat1;
+    {
+      auto ret = fstat(fd, &stat1);
+      if (ret == -1) {
+        perror("stat");
+//      closeDB();
+        return nullptr;
+      }
+    }
+    if (initMeta(stat1.st_size, minLen)) {
+      return nullptr;
+    }
+  }
+
+  rwtx->metaData->totalPageNumber += count;
+  return page;
+}
+int Database::view(std::function<int(Txn *tx)> fn) {
+  auto tx = beginTx();
+  if(tx == nullptr){
+    return -1;
+  }
+
+  tx->managed = true;
+
+  auto ret = fn(tx);
+
+  tx->managed = false;
+
+  if (ret != 0) {
+    tx->rollback();
+    return -1;
+  }
+
+  tx->rollback();
+  return 0;
+}
+
 void FreeList::free(txn_id tid, Page *page) {
+  //meta page will never be freed
   if (page->pageId <= 1) {
     assert(false);
   }
@@ -369,6 +463,7 @@ void FreeList::free(txn_id tid, Page *page) {
     cache[iter] = true;
   }
 }
+
 size_t FreeList::size() {
   auto ret = count();
 
@@ -378,12 +473,15 @@ size_t FreeList::size() {
 
   return PAGEHEADERSIZE + ret * sizeof(page_id);
 }
+
 size_t FreeList::count() {
   return free_count() + pending_count();
 }
+
 size_t FreeList::free_count() {
   return pageIds.size();
 }
+
 size_t FreeList::pending_count() {
   size_t result = 0;
   for (auto &item : pending) {
@@ -391,14 +489,16 @@ size_t FreeList::pending_count() {
   }
   return result;
 }
+
 void FreeList::copyall(std::vector<page_id> &dest) {
   std::vector<page_id> tmp;
   for (auto item : pending) {
     std::copy(item.second.begin(), item.second.end(), std::back_inserter(tmp));
   }
   std::sort(tmp.begin(), tmp.end());
-
+  mergePageIds(dest, tmp, pageIds);
 }
+
 page_id FreeList::allocate(size_t sz) {
   if (pageIds.empty()) {
     return 0;
@@ -453,6 +553,7 @@ void FreeList::release(txn_id tid) {
   std::sort(list.begin(), list.end());
   pageIds = merge(pageIds, list);
 }
+
 void FreeList::rollback(txn_id tid) {
   for (auto item : pending[tid]) {
     cache.erase(item);
@@ -460,9 +561,11 @@ void FreeList::rollback(txn_id tid) {
 
   pending.erase(tid);
 }
+
 bool FreeList::freed(page_id pageId) {
   return cache[pageId];
 }
+
 void FreeList::read(Page *page) {
   size_t idx = 0;
   size_t count = page->count;
@@ -486,6 +589,7 @@ void FreeList::read(Page *page) {
 
   reindex();
 }
+
 void FreeList::reindex() {
   cache.clear();
   for (auto item : pageIds) {
@@ -498,13 +602,18 @@ void FreeList::reindex() {
     }
   }
 }
+
+//curious about how to deal with overflow pages
+//allocate will return a continuous block of memory
+//if the write overflow one page, it should be written into the next page
+//but I havn't find out in which procedure the overflow is updated
 int FreeList::write(Page *page) {
   page->flag |= static_cast<uint16_t >(PageFlag::freelistPageFlag);
   auto count = this->count();
   if (count == 0) {
-    page->count = count;
+    page->count = static_cast<uint16_t >(count);
   } else if (count < 0xffff) {
-    page->count = count;
+    page->count = static_cast<uint16_t >(count);
     //re-implement it to avoid copying later
     std::vector<page_id> dest;
     copyall(dest);
@@ -527,6 +636,7 @@ int FreeList::write(Page *page) {
   }
   return 0;
 }
+
 void FreeList::reload(Page *page) {
   read(page);
 
@@ -547,6 +657,11 @@ void FreeList::reload(Page *page) {
 
   pageIds = newIds;
   reindex();
+}
+void FreeList::reset() {
+  pageIds.clear();
+  pending.clear();
+  cache.clear();
 }
 
 //uint64_t MetaData::sum64() {

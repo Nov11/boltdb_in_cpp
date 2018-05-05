@@ -72,7 +72,7 @@ struct FreeList {
   int write(Page *page);
   void reindex();
   void reload(Page *page);
-
+  void reset();
 };
 
 struct Stat {
@@ -114,7 +114,7 @@ struct Database {
   uint32_t maxBatchSize = 0;
   uint32_t maxBatchDelayMillionSeconds = 0;
   uint32_t allocSize = 0;
-  uint32_t fileSize = 0;
+  uint64_t fileSize = 0;
   std::string path;
   int fd = -1;
   void *dataref = nullptr;//readonly . this is mmap data
@@ -187,7 +187,7 @@ struct Database {
 
   uint64_t getPageSize() const;
 
-  Page *allocate(size_t count);
+  Page *allocate(size_t count, Txn* txn);
 
   Meta *meta();
   void removeTxn(Txn *txn);
@@ -197,9 +197,11 @@ struct Database {
   Page *pageInBuffer(char *ptr, size_t length, page_id pageId);
   Database *openDB(const std::string &path, uint16_t mode, const Options &options = DEFAULTOPTION);
   void closeDB();
+  void do_closeDB();
   int initMeta(off_t fileSize, off_t minMmapSize);
   int mmapSize(off_t &targetSize);//targetSize is a hint. calculate the mmap size based on input param
   int update(std::function<int(Txn *tx)> fn);
+  int view(std::function<int(Txn *tx)> fn);
   Txn *beginRWTx();
   Txn *beginTx();
 };

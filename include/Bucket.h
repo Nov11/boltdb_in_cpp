@@ -36,15 +36,11 @@ struct Bucket {
   Txn *getTransaction() const {
     return tx;
   }
-  page_id getRoot() const {
+  page_id getRootPage() const {
     return bucketHeader.root;
   }
 
   bool isWritable() const;
-
-  void setRootNode(Node* node) {
-    rootNode = node;
-  }
 
   double getFillPercent() const {
     return fillpercent;

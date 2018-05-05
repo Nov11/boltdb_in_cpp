@@ -20,7 +20,7 @@ bool Meta::validate() {
   return true;
 }
 void Meta::write(Page *page) {
-  if (root.root >= totalPageNumber) {
+  if (rootBucketHeader.root >= totalPageNumber) {
     assert(false);
   }
   if (freeListPageNumber >= totalPageNumber) {

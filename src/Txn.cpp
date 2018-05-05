@@ -19,8 +19,9 @@ Page *boltDB_CPP::Txn::getPage(page_id pageId) {
   }
   return db->getPage(pageId);
 }
+
 Page *Txn::allocate(size_t count) {
-  auto ret = db->allocate(count);
+  auto ret = db->allocate(count,this);
   if (ret == nullptr) {
     return ret;
   }
@@ -31,6 +32,7 @@ Page *Txn::allocate(size_t count) {
 
   return ret;
 }
+
 void Txn::for_each_page(page_id pageId, int depth, std::function<void(Page *, int)> fn) {
   auto p = getPage(pageId);
   fn(p, depth);
@@ -42,34 +44,41 @@ void Txn::for_each_page(page_id pageId, int depth, std::function<void(Page *, in
     }
   }
 }
+
 void Txn::init(Database *db) {
   this->db = db;
   metaData = Meta::copyCreateFrom(db->meta());
   //todo:reset bucket using member function
   rootBucket = *newBucket(this);
-  rootBucket.bucketHeader = metaData->root;
+  rootBucket.bucketHeader = metaData->rootBucketHeader;
   if (writable) {
     metaData->txnId += 1;
   }
 }
+
 Bucket *Txn::getBucket(const Item &name) {
   return rootBucket.getBucketByName(name);
 }
+
 Bucket *Txn::createBucket(const Item &name) {
   return rootBucket.createBucket(name);
 }
+
 Bucket *Txn::createBucketIfNotExists(const Item &name) {
   return rootBucket.createBucketIfNotExists(name);
 }
+
 int Txn::deleteBucket(const Item &name) {
   rootBucket.deleteBucket(name);
 }
+
 int Txn::for_each(std::function<int(const Item &name, Bucket *b)> fn) {
   return rootBucket.for_each([&fn, this](const Item &k, const Item &v) -> int {
     auto ret = fn(k, rootBucket.getBucketByName(k));
     return ret;
   });
 }
+
 void Txn::OnCommit(std::function<void()> fn) {
   commitHandlers.push_back(fn);
 }
@@ -90,7 +99,7 @@ int Txn::commit() {
     return -1;
   }
 
-  metaData->root.root = rootBucket.getRoot();
+  metaData->rootBucketHeader.root = rootBucket.getRootPage();
   auto pgid = metaData->totalPageNumber;
 
   db->freeList.free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
@@ -130,6 +139,7 @@ int Txn::commit() {
   }
   return 0;
 }
+
 void Txn::rollback() {
   if (db == nullptr) {
     return;
@@ -140,6 +150,7 @@ void Txn::rollback() {
   }
   closeTxn();
 }
+
 void Txn::closeTxn() {
   if (db == nullptr) {
     return;
@@ -159,6 +170,7 @@ void Txn::closeTxn() {
   rootBucket.reset();
   rootBucket.tx = this;
 }
+
 int Txn::writeMeta() {
   std::vector<char> tmp(db->getPageSize());
   Page *page = reinterpret_cast<Page *>(tmp.data());
@@ -175,6 +187,7 @@ int Txn::writeMeta() {
   }
   return 0;
 }
+
 int Txn::write() {
   std::vector<Page *> pages;
   for (auto item : dirtyPageTable) {
@@ -199,6 +212,7 @@ int Txn::write() {
 
   return 0;
 }
+
 bool Txn::freelistcheck() {
   std::map<page_id, bool> hash;
   for (auto item : db->freeList.pageIds) {
@@ -235,6 +249,7 @@ bool Txn::freelistcheck() {
   }
   return false;
 }
+
 bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable, std::map<page_id, bool> &freed) {
   if (bucket.bucketHeader.root == 0) {
     return true;
