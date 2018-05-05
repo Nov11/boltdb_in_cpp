@@ -6,4 +6,4 @@ fi
 cd build
 cmake ..
 make -j4
-make test
+make check
