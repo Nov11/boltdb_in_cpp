@@ -1,0 +1,7 @@
+sudo: required
+language: cpp
+
+#before_script:
+#  - sh install_grpc.sh
+
+script: sh build.sh

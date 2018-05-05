@@ -20,7 +20,7 @@
 - [x] db
 - [ ] test cases
 
-### layouts
+### on disk file layouts
 #### file
 * |page 0|page 1|page 2  |page 3   |...| <- general  
 * |meta 0|meta 1|freelist|leaf page|...| <- typical
@@ -41,5 +41,5 @@
 3. no exclusion on writing meta page
 
 ### great resource:
-[a series of source code reading blogs(by oceanken)](https://www.jianshu.com/p/b86a69892990)
-[bucket data structure explanation (2016)](http://www.d-kai.me/boltdb%E4%B9%8Bbucket%E4%B8%80/)
+* [a series of source code reading blogs(by oceanken)](https://www.jianshu.com/p/b86a69892990)
+* [bucket data structure explanation (2016)](http://www.d-kai.me/boltdb%E4%B9%8Bbucket%E4%B8%80/)
