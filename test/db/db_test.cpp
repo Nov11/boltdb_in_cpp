@@ -7,5 +7,7 @@
 #include <thread>
 #include <fcntl.h>
 namespace boltDB_CPP {
-
+TEST(dbtest, emptytest) {
+  std::cout << "emptytest" << std::endl;
+}
 }

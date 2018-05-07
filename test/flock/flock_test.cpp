@@ -41,6 +41,7 @@ TEST(dbteset, flockWLockOn2RLocksGranted) {
   std::cout << "2 read locks released" << std::endl;
   th.join();
   EXPECT_EQ(granted.load(), true);
+  file_Unlock(fd3);
   std::cout << "test ends" << std::endl;
 }
 
@@ -77,6 +78,7 @@ TEST(dbteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
   close(fd2);
   std::cout << "2 read locks closed" << std::endl;
   th.join();
+  file_Unlock(fd3);
   std::cout << "test ends" << std::endl;
 }
 
@@ -94,6 +96,7 @@ TEST(dbteset, flockLockTypeChange) {
   std::cout << "grabbed 1 write lock" << std::endl;
   EXPECT_EQ(file_Rlock(fd1), 0);
   std::cout << "grabbed 1 read lock" << std::endl;
+  file_Unlock(fd1);
   std::cout << "test ends" << std::endl;
 }
 
@@ -160,6 +163,7 @@ TEST(dbteset, flockTwoWLocks) {
   std::cout << "grabbed 1 write lock" << std::endl;
   EXPECT_EQ(file_WlockBlocking(fd1), 0);
   std::cout << "grabbed 1 write lock" << std::endl;
+  file_Unlock(fd1);
   std::cout << "test ends" << std::endl;
 }
 }
