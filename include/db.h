@@ -41,16 +41,16 @@ const int DEFAULTMAXBATCHSIZE = 100;
 const int DEFAULTMAXBATCHDELAYMILLIIONSEC = 10;
 const int DEFAULTALLOCATIONSIZE = 16 * 1024 * 1024;
 const int DEFAULTPAGESIZE = 4096;  // this value is returned by `getconf
-                                   // PAGE_SIZE` on ubuntu 17.10 x86_64
+// PAGE_SIZE` on ubuntu 17.10 x86_64
 
-/*
+/**
  * forward declaration
  */
 struct Page;
-struct db;
+struct DB;
 struct TxStat;
-struct txn;
-struct meta;
+struct Txn;
+struct Meta;
 
 struct FreeList {
   std::vector<page_id> pageIds;                    // free & available
@@ -99,13 +99,14 @@ struct Options {
 const Options DEFAULTOPTION{};
 
 class Batch {
-  db *database;
+  DB *database;
   // timer
   // call once
   // a function list
 };
 
-struct db {
+struct DB {
+  static uint32_t pageSize;
   bool strictMode = false;
   bool noSync = false;
   bool noGrowSync = false;
@@ -118,14 +119,13 @@ struct db {
   int fd = -1;
   void *dataref = nullptr;   // readonly . this is mmap data
   char (*data)[MAXMAPSIZE];  // data is a pointer to block of memory if sizeof
-                             // MAXMAPSIZE
+  // MAXMAPSIZE
   uint64_t dataSize = 0;
-  meta *meta0 = nullptr;
-  meta *meta1 = nullptr;
-  uint32_t pageSize = DEFAULTPAGESIZE;
+  Meta *meta0 = nullptr;
+  Meta *meta1 = nullptr;
   bool opened = false;
-  txn *rwtx = nullptr;
-  std::vector<txn *> txs;
+  Txn *rwtx = nullptr;
+  std::vector<Txn *> txs;
   FreeList freeList;
   Stat stat;
 
@@ -133,13 +133,13 @@ struct db {
   Batch *batch = nullptr;
 
   std::mutex readWriteAccessMutex;  // this is writer's mutex. writers must
-                                    // acquire this lock before proceeding.
+  // acquire this lock before proceeding.
   std::mutex metaLock;  // this protects the database object.
-  rwlock mmapLock;
-  rwlock statLock;
+  RWLock mmapLock;
+  RWLock statLock;
 
   bool readOnly = false;
-  memory_pool txnPool;
+  MemoryPool txnPool;
 
   std::function<int(char *, size_t, off_t)> writeAt =
       [this](char *buf, size_t len, off_t offset) {
@@ -154,24 +154,24 @@ struct db {
   void resetData();
   Page *getPage(page_id pageId);
   FreeList &getFreeLIst();
-  uint64_t getPageSize() const;
-  Page *allocate(size_t count, txn *txn);
-  meta *meta();
-  void removeTxn(txn *txn);
+  static uint64_t getPageSize();
+  Page *allocate(size_t count, Txn *txn);
+  Meta *meta();
+  void removeTxn(Txn *txn);
   int grow(size_t sz);
   int init();
   Page *pageInBuffer(char *ptr, size_t length, page_id pageId);
-  db *openDB(const std::string &path, uint16_t mode,
-                   const Options &options = DEFAULTOPTION);
+  DB *openDB(const std::string &path, uint16_t mode,
+             const Options &options = DEFAULTOPTION);
   void closeDB();
   void do_closeDB();
   int initMeta(off_t fileSize, off_t minMmapSize);
   int mmapSize(off_t &targetSize);  // targetSize is a hint. calculate the mmap
-                                    // size based on input param
-  int update(std::function<int(txn *tx)> fn);
-  int view(std::function<int(txn *tx)> fn);
-  txn *beginRWTx();
-  txn *beginTx();
+  // size based on input param
+  int update(std::function<int(Txn *tx)> fn);
+  int view(std::function<int(Txn *tx)> fn);
+  Txn *beginRWTx();
+  Txn *beginTx();
 };
 
 struct BranchPageElement {
@@ -204,6 +204,7 @@ struct LeafPageElement {
 };
 
 struct Page {
+  friend class ElementRef;
   page_id pageId = 0;
   uint16_t flag = 0;
   uint16_t count = 0;
@@ -226,7 +227,7 @@ struct Page {
   void setFlag(uint16_t flags) { Page::flag = flags; }
   uint16_t getCount() const { return count; }
 
-  meta *getMeta() { return reinterpret_cast<meta *>(&ptr); }
+  Meta *getMeta() { return reinterpret_cast<Meta *>(&ptr); }
 };
 
 // transverse all kv pairs in a bucket in sorted order

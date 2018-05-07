@@ -2,32 +2,32 @@
 // Created by c6s on 18-4-26.
 //
 #include "bucket.h"
-#include <txn.h>
 #include <cstring>
 #include <memory>
 #include "cursor.h"
 #include "db.h"
 #include "meta.h"
 #include "node.h"
+#include "txn.h"
 
 namespace boltDB_CPP {
 
-bucket *newBucket(txn *tx_p) {
-  auto bucket = tx_p->pool.allocate<bucket>();
+Bucket *Bucket::newBucket(Txn *tx_p) {
+  auto bucket = tx_p->pool.allocate<Bucket>();
   bucket->tx = tx_p;
   return bucket;
 }
 
-cursor *bucket::createCursor() {
+Cursor *Bucket::createCursor() {
   tx->increaseCurserCount();
-  return tx->pool.allocate<cursor>(this);
+  return tx->pool.allocate<Cursor>(this);
 }
 
-void bucket::getPageNode(page_id pageId_p, node *&node_p, Page *&page_p) {
+void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
   node_p = nullptr;
   page_p = nullptr;
 
-  if (bucketHeader.root == 0) {
+  if (bucketHeader.rootPageId == 0) {
     if (pageId_p) {
       assert(false);
     }
@@ -51,21 +51,21 @@ void bucket::getPageNode(page_id pageId_p, node *&node_p, Page *&page_p) {
 }
 
 // create a node from a page and associate it with a given parent
-node *bucket::getNode(page_id pageId, node *parent) {
+Node *Bucket::getNode(page_id pageId, Node *parent) {
   auto iter = nodes.find(pageId);
   if (iter != nodes.end()) {
     return iter->second;
   }
 
-  auto node = tx->pool.allocate<node>();
+  auto node = tx->pool.allocate<Node>();
 
-  node->bucket = this;
-  node->parentNode = parent;
+  node->setBucket(this);
+  node->setParent(parent);
 
   if (parent == nullptr) {
     rootNode = node;
   } else {
-    parent->children.push_back(node);
+    parent->addChild(node);
   }
 
   Page *p = page;
@@ -81,7 +81,7 @@ node *bucket::getNode(page_id pageId, node *parent) {
   return node;
 }
 
-bucket *bucket::getBucketByName(const Item &searchKey) {
+Bucket *Bucket::getBucketByName(const Item &searchKey) {
   auto iter = buckets.find(searchKey);
   if (iter != buckets.end()) {
     return iter->second;
@@ -100,12 +100,12 @@ bucket *bucket::getBucketByName(const Item &searchKey) {
   openBucket(value);
 }
 
-bucket *bucket::createBucket(const Item &key) {
+Bucket *Bucket::createBucket(const Item &key) {
   if (tx->db == nullptr || !tx->writable || key.length == 0) {
     std::cerr << "invalid param " << std::endl;
     return nullptr;
   }
-  auto c = cursor();
+  auto c = Cursor();
   Item k;
   Item v;
   uint32_t flag;
@@ -120,9 +120,9 @@ bucket *bucket::createBucket(const Item &key) {
   }
 
   // create an empty inline bucket
-  auto bucket = bucket();
-  bucket.rootNode = tx->pool.allocate<node>();
-  rootNode->isLeaf = true;
+  Bucket bucket;
+  bucket.rootNode = tx->pool.allocate<Node>();
+  rootNode->markLeaf();
 
   // todo:use memory pool to fix memory leak
   Item putValue = bucket.write();
@@ -135,7 +135,7 @@ bucket *bucket::createBucket(const Item &key) {
   return getBucketByName(key);
 }
 
-bucket *bucket::openBucket(const Item &value) {
+Bucket *Bucket::openBucket(const Item &value) {
   auto child = newBucket(tx);
   //<del>
   // this may result in un-equivalent to the original purpose
@@ -151,11 +151,11 @@ bucket *bucket::openBucket(const Item &value) {
                 sizeof(bucketHeader));
   } else {
     child->bucketHeader =
-        *(reinterpret_cast<bucketHeader *>(const_cast<char *>(value.pointer)));
+        *(reinterpret_cast<BucketHeader *>(const_cast<char *>(value.pointer)));
   }
 
   // is this a inline bucket?
-  if (child->bucketHeader.root == 0) {
+  if (child->bucketHeader.rootPageId == 0) {
     child->page = reinterpret_cast<Page *>(
         const_cast<char *>(&value.pointer[BUCKETHEADERSIZE]));
   }
@@ -163,13 +163,13 @@ bucket *bucket::openBucket(const Item &value) {
 }
 
 // serialize bucket header & rootNode
-Item bucket::write() {
+Item Bucket::write() {
   size_t length = BUCKETHEADERSIZE + rootNode->size();
 
   char *result = tx->pool.allocateByteArray(length);
 
   // write bucketHeader in the front
-  *(reinterpret_cast<bucketHeader *>(result)) = bucketHeader;
+  *(reinterpret_cast<BucketHeader *>(result)) = bucketHeader;
 
   // serialize node after bucketHeader
   auto pageInBuffer = (Page *)&result[BUCKETHEADERSIZE];
@@ -178,12 +178,12 @@ Item bucket::write() {
   return Item{result, length};
 }
 
-bucket *bucket::createBucketIfNotExists(const Item &key) {
+Bucket *Bucket::createBucketIfNotExists(const Item &key) {
   auto child = createBucket(key);
   return child;
 }
 
-int bucket::deleteBucket(const Item &key) {
+int Bucket::deleteBucket(const Item &key) {
   if (tx->db == nullptr || !isWritable()) {
     return -1;
   }
@@ -222,7 +222,7 @@ int bucket::deleteBucket(const Item &key) {
   return 0;
 }
 
-int bucket::for_each(std::function<int(const Item &, const Item &)> fn) {
+int Bucket::for_each(std::function<int(const Item &, const Item &)> fn) {
   if (tx->db == nullptr) {
     return -1;
   }
@@ -240,12 +240,12 @@ int bucket::for_each(std::function<int(const Item &, const Item &)> fn) {
   return 0;
 }
 
-void bucket::free() {
-  if (bucketHeader.root == 0) {
+void Bucket::free() {
+  if (bucketHeader.rootPageId == 0) {
     return;
   }
 
-  for_each_page_node([this](Page *p, node *n, int) {
+  for_each_page_node([this](Page *p, Node *n, int) {
     if (p) {
       tx->db->freeList.free(tx->metaData->txnId, p);
     } else {
@@ -254,10 +254,10 @@ void bucket::free() {
     }
   });
 
-  bucketHeader.root = 0;
+  bucketHeader.rootPageId = 0;
 }
 
-void bucket::for_each_page_node(std::function<void(Page *, node *, int)> fn) {
+void Bucket::for_each_page_node(std::function<void(Page *, Node *, int)> fn) {
   if (page) {
     fn(page, nullptr, 0);
     return;
@@ -265,9 +265,9 @@ void bucket::for_each_page_node(std::function<void(Page *, node *, int)> fn) {
   for_each_page_node_impl(getRootPage(), 0, fn);
 }
 
-void bucket::for_each_page_node_impl(
-    page_id pid, int depth, std::function<void(Page *, node *, int)> fn) {
-  node *node;
+void Bucket::for_each_page_node_impl(
+    page_id pid, int depth, std::function<void(Page *, Node *, int)> fn) {
+  Node *node;
   Page *page;
   getPageNode(pid, node, page);
 
@@ -280,15 +280,15 @@ void bucket::for_each_page_node_impl(
       }
     }
   } else {
-    if (!node->isLeaf) {
-      for (auto item : node->inodeList) {
-        for_each_page_node_impl(item.pageId, depth + 1, fn);
+    if (!node->isLeafNode()) {
+      for (auto pid : node->branchPageIds()) {
+        for_each_page_node_impl(pid, depth + 1, fn);
       }
     }
   }
 }
 
-void bucket::dereference() {
+void Bucket::dereference() {
   if (rootNode) {
     rootNode->root()->dereference();
   }
@@ -301,7 +301,7 @@ void bucket::dereference() {
 /**
  * this is merging node which has elements below threshold
  */
-void bucket::rebalance() {
+void Bucket::rebalance() {
   for (auto &item : nodes) {
     item.second->rebalance();
   }
@@ -311,7 +311,7 @@ void bucket::rebalance() {
   }
 }
 
-char *bucket::cloneBytes(const Item &key, size_t *retSz) {
+char *Bucket::cloneBytes(const Item &key, size_t *retSz) {
   if (retSz) {
     *retSz = key.length;
   }
@@ -320,7 +320,7 @@ char *bucket::cloneBytes(const Item &key, size_t *retSz) {
   return result;
 }
 
-Item bucket::get(const Item &key) {
+Item Bucket::get(const Item &key) {
   Item k;
   Item v;
   uint32_t flag = 0;
@@ -331,7 +331,7 @@ Item bucket::get(const Item &key) {
   return v;
 }
 
-int bucket::put(const Item &key, const Item &value) {
+int Bucket::put(const Item &key, const Item &value) {
   if (tx->db == nullptr || !isWritable() || key.length == 0 ||
       key.length > MAXKEYSIZE || value.length > MAXVALUESIZE) {
     return -1;
@@ -356,7 +356,7 @@ int bucket::put(const Item &key, const Item &value) {
   return 0;
 }
 
-int bucket::remove(const Item &key) {
+int Bucket::remove(const Item &key) {
   if (tx->db == nullptr || !isWritable()) {
     return -1;
   }
@@ -376,9 +376,9 @@ int bucket::remove(const Item &key) {
   return 0;
 }
 
-uint64_t bucket::sequence() { return bucketHeader.sequence; }
+uint64_t Bucket::sequence() { return bucketHeader.sequence; }
 
-int bucket::setSequence(uint64_t v) {
+int Bucket::setSequence(uint64_t v) {
   if (tx->db == nullptr || !isWritable()) {
     return -1;
   }
@@ -390,7 +390,7 @@ int bucket::setSequence(uint64_t v) {
   return 0;
 }
 
-int bucket::nextSequence(uint64_t &v) {
+int Bucket::nextSequence(uint64_t &v) {
   if (tx->db == nullptr || !isWritable()) {
     return -1;
   }
@@ -402,7 +402,7 @@ int bucket::nextSequence(uint64_t &v) {
   return 0;
 }
 
-void bucket::for_each_page(std::function<void(Page *, int)> fn) {
+void Bucket::for_each_page(std::function<void(Page *, int)> fn) {
   if (page) {
     fn(page, 0);
     return;
@@ -411,31 +411,20 @@ void bucket::for_each_page(std::function<void(Page *, int)> fn) {
   tx->for_each_page(getRootPage(), 0, fn);
 }
 
-int bucket::maxInlineBucketSize() {
-  return static_cast<int>(tx->db->getPageSize() / 4);
+size_t Bucket::maxInlineBucketSize() {
+  return boltDB_CPP::DB::getPageSize() / 4;
 }
 
-bool bucket::inlineable() {
+bool Bucket::inlineable() {
   auto r = rootNode;
-  if (r == nullptr || !r->isLeaf) {
+  if (r == nullptr || !r->isLeafNode()) {
     return false;
   }
 
-  size_t s = PAGEHEADERSIZE;
-  for (auto item : r->inodeList) {
-    s += LEAFPAGEELEMENTSIZE + item.key.length + item.value.length;
-
-    if (isBucketLeaf(item.flag)) {
-      return false;
-    }
-    if (s > maxInlineBucketSize()) {
-      return false;
-    }
-  }
-  return true;
+  return r->isinlineable(maxInlineBucketSize());
 }
 
-int bucket::spill() {
+int Bucket::spill() {
   for (auto item : buckets) {
     auto name = item.first;
     auto child = item.second;
@@ -452,7 +441,7 @@ int bucket::spill() {
 
       newValue.length = sizeof(bucketHeader);
       auto ptr = tx->pool.allocateByteArray(newValue.length);
-      *(reinterpret_cast<bucketHeader *>(ptr)) = child->bucketHeader;
+      *(reinterpret_cast<BucketHeader *>(ptr)) = child->bucketHeader;
       newValue.pointer = ptr;
     }
 
@@ -490,24 +479,27 @@ int bucket::spill() {
 
   rootNode = rootNode->root();
 
-  if (rootNode->pageId >= tx->metaData->totalPageNumber) {
+  if (rootNode->getPageId() >= tx->metaData->totalPageNumber) {
     assert(false);
   }
 
-  bucketHeader.root = rootNode->pageId;
+  bucketHeader.rootPageId = rootNode->getPageId();
   return 0;
 }
 
-bool bucket::isWritable() const { return tx->isWritable(); }
+bool Bucket::isWritable() const { return tx->isWritable(); }
 
-void bucket::reset() {
+void Bucket::reset() {
   tx = nullptr;
   page = nullptr;  // useful for inline buckets, page points to beginning of the
-                   // serialized value i.e. a page' header
+  // serialized value i.e. a page' header
   rootNode = nullptr;
   bucketHeader.reset();
   buckets.clear();  // subbucket cache. used if txn is writable. k:bucket name
   nodes.clear();    // node cache. used if txn is writable
 }
-
+size_t Bucket::getTotalPageNumber() const {
+  return tx->metaData->totalPageNumber;
+}
+MemoryPool &Bucket::getPool() { return tx->pool; }
 }  // namespace boltDB_CPP

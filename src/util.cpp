@@ -28,7 +28,7 @@ int file_Rlock(int fd) { return file_lock_nonblocking(fd, LOCK_SH | LOCK_NB); }
 
 int file_Unlock(int fd) { return file_lock_nonblocking(fd, LOCK_UN | LOCK_NB); }
 
-int mmap_db_file(db *database, size_t sz) {
+int mmap_db_file(DB *database, size_t sz) {
   void *ret = ::mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->fd, 0);
   if (ret == MAP_FAILED) {
     perror("mmap");
@@ -47,7 +47,7 @@ int mmap_db_file(db *database, size_t sz) {
 }
 
 // un-map database file from memory
-int munmap_db_file(db *database) {
+int munmap_db_file(DB *database) {
   // return if it has no mapping data
   if (database->dataref == nullptr) {
     return 0;

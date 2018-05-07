@@ -14,10 +14,10 @@ std::string newFileName() {
 
 namespace boltDB_CPP {
 class TmpFile : testing::Test {
-  std::unique_ptr<db> db;
+  std::unique_ptr<DB> db;
   void SetUp() override {
     //create a tmp db file
-    db.reset(new db);
+    db.reset(new DB);
     auto ret = db->openDB(newFileName(), 0666);
     assert(ret);
   }

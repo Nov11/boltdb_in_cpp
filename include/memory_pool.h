@@ -23,11 +23,11 @@ namespace boltDB_CPP {
  * MemoryPool may not be a descriptive name since it doesn't have a 'pool' of
  * memory spaces at all. But it fits my need for now.
  */
-class memory_pool {
+class MemoryPool {
   std::vector<char *> arrays;
 
  public:
-  ~memory_pool() {
+  ~MemoryPool() {
     for (auto item : arrays) {
       delete[] item;
     }
@@ -62,9 +62,9 @@ class memory_pool {
     std::memcpy(ret, src, len);
     return ret;
   }
-  memory_pool operator=(const memory_pool &) = delete;
-  memory_pool(const memory_pool &) = delete;
-  memory_pool() = default;
+  MemoryPool operator=(const MemoryPool &) = delete;
+  MemoryPool(const MemoryPool &) = delete;
+  MemoryPool() = default;
 };
 }  // namespace boltDB_CPP
 #endif  // BOLTDB_IN_CPP_MEMORYPOOL_H

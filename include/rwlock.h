@@ -8,7 +8,7 @@
 #include <condition_variable>
 
 namespace boltDB_CPP {
-class rwlock {
+class RWLock {
   bool write_entered;
   size_t reader_count;
   std::mutex mtx;
@@ -16,9 +16,9 @@ class rwlock {
   std::condition_variable writer;
 
  public:
-  rwlock() : write_entered(false), reader_count(0) {}
-  rwlock(const rwlock &) = delete;
-  rwlock &operator=(const rwlock &) = delete;
+  RWLock() : write_entered(false), reader_count(0) {}
+  RWLock(const RWLock &) = delete;
+  RWLock &operator=(const RWLock &) = delete;
 
   void readLock() {
     std::unique_lock<std::mutex> lock(mtx);

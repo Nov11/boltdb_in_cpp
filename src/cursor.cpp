@@ -30,7 +30,7 @@ size_t ElementRef::count() const {
   return page->count;
 }
 
-void cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
+void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   assert(!stk.empty());
   auto ref = stk.top();
   if (ref.count() == 0 || ref.index >= ref.count()) {
@@ -41,7 +41,7 @@ void cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
 
   // are those values sitting a node?
   if (ref.node) {
-    auto inode = ref.node->inodeList[ref.index];
+    auto inode = ref.node->getInode(ref.index);
     key = inode.Key();
     value = inode.Value();
     flag = inode.flag;
@@ -56,8 +56,8 @@ void cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   return;
 }
 
-void cursor::search(const Item &key, page_id pageId) {
-  node *node = nullptr;
+void Cursor::search(const Item &key, page_id pageId) {
+  Node *node = nullptr;
   Page *page = nullptr;
   bucket->getPageNode(pageId, node, page);
   if (page &&
@@ -79,7 +79,7 @@ void cursor::search(const Item &key, page_id pageId) {
   searchBranchPage(key, page);
 }
 
-void cursor::searchLeaf(const Item &key) {
+void Cursor::searchLeaf(const Item &key) {
   assert(!stk.empty());
   ElementRef &ref = stk.top();
 
@@ -87,9 +87,7 @@ void cursor::searchLeaf(const Item &key) {
   if (ref.node) {
     // search through inodeList for a matching Key
     // inodelist should be sorted in ascending order
-    ref.index = static_cast<uint32_t>(
-        binary_search(ref.node->inodeList, key, cmp_wrapper<Inode>,
-                      ref.node->inodeList.size(), found));
+    ref.index = static_cast<uint32_t>(ref.node->search(key, found));
     return;
   }
 
@@ -97,18 +95,17 @@ void cursor::searchLeaf(const Item &key) {
   ref.index = static_cast<uint32_t>(binary_search(
       ptr, key, cmp_wrapper<LeafPageElement>, ref.page->count, found));
 }
-void cursor::searchBranchNode(const Item &key, node *node) {
+void Cursor::searchBranchNode(const Item &key, Node *node) {
   bool found = false;
-  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode>,
-                             node->inodeList.size(), found);
+  auto index = node->search(key, found);
   if (!found && index > 0) {
     index--;
   }
   assert(!stk.empty());
   stk.top().index = index;
-  search(key, node->inodeList[index].pageId);
+  search(key, node->getInode(index).pageId);
 }
-void cursor::searchBranchPage(const Item &key, Page *page) {
+void Cursor::searchBranchPage(const Item &key, Page *page) {
   auto branchElements = page->getBranchPageElement(0);
   bool found = false;
   auto index = binary_search(
@@ -120,7 +117,7 @@ void cursor::searchBranchPage(const Item &key, Page *page) {
   stk.top().index = index;
   search(key, branchElements[index].pageId);
 }
-void cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
+void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
   {
     decltype(stk) tmp;
     swap(stk, tmp);
@@ -141,7 +138,7 @@ void cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
  * refactory this after main components are implemented
  * @return
  */
-node *cursor::getNode() const {
+Node *Cursor::getNode() const {
   if (!stk.empty() && stk.top().node && stk.top().isLeaf()) {
     stk.top().node;
   }
@@ -155,20 +152,20 @@ node *cursor::getNode() const {
   std::reverse(v.begin(), v.end());
 
   assert(!v.empty());
-  node *node = v[0].node;
+  Node *node = v[0].node;
   if (node == nullptr) {
     node = bucket->getNode(v[0].page->pageId, nullptr);
   }
 
   for (size_t i = 0; i + 1 < v.size(); i++) {
-    assert(!node->isLeaf);
+    assert(!node->isLeafNode());
     node = node->childAt(stk.top().index);
   }
 
-  assert(node->isLeaf);
+  assert(node->isLeafNode());
   return node;
 }
-void cursor::do_next(Item &key, Item &value, uint32_t &flag) {
+void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   while (true) {
     while (!stk.empty()) {
       auto &ref = stk.top();
@@ -199,7 +196,7 @@ void cursor::do_next(Item &key, Item &value, uint32_t &flag) {
 }
 
 // get to first leaf element under the last page in the stack
-void cursor::do_first() {
+void Cursor::do_first() {
   while (true) {
     assert(!stk.empty());
     if (stk.top().isLeaf()) {
@@ -209,19 +206,19 @@ void cursor::do_first() {
     auto &ref = stk.top();
     page_id pageId = 0;
     if (ref.node != nullptr) {
-      pageId = ref.node->inodeList[ref.index].pageId;
+      pageId = ref.node->getInode(ref.index).pageId;
     } else {
       pageId = ref.page->getBranchPageElement(ref.index)->pageId;
     }
 
     Page *page = nullptr;
-    node *node = nullptr;
+    Node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     stk.push(element);
   }
 }
-void cursor::do_last() {
+void Cursor::do_last() {
   while (true) {
     auto &ref = stk.top();
     if (ref.isLeaf()) {
@@ -230,21 +227,21 @@ void cursor::do_last() {
 
     page_id pageId = 0;
     if (ref.node != nullptr) {
-      pageId = ref.node->inodeList[ref.index].pageId;
+      pageId = ref.node->getInode(ref.index).pageId;
     } else {
       pageId = ref.page->getBranchPageElement(ref.index)->pageId;
     }
 
     Page *page = nullptr;
-    node *node = nullptr;
+    Node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     element.index = element.count() - 1;
     stk.push(element);
   }
 }
-int cursor::remove() {
-  if (bucket->getTransaction()->db == nullptr) {
+int Cursor::remove() {
+  if (bucket->getTxn()->db == nullptr) {
     std::cerr << "db closed" << std::endl;
     return -1;
   }
@@ -269,7 +266,7 @@ int cursor::remove() {
   getNode()->do_remove(key);
   return 0;
 }
-void cursor::seek(const Item &searchKey, Item &key, Item &value,
+void Cursor::seek(const Item &searchKey, Item &key, Item &value,
                   uint32_t &flag) {
   key.reset();
   value.reset();
@@ -284,7 +281,7 @@ void cursor::seek(const Item &searchKey, Item &key, Item &value,
   }
   keyValue(key, value, flag);
 }
-void cursor::prev(Item &key, Item &value) {
+void Cursor::prev(Item &key, Item &value) {
   key.reset();
   value.reset();
   while (!stk.empty()) {
@@ -305,13 +302,13 @@ void cursor::prev(Item &key, Item &value) {
   keyValue(key, value, flag);
   // I think there's no need to clear value if current node is a branch node
 }
-void cursor::next(Item &key, Item &value) {
+void Cursor::next(Item &key, Item &value) {
   key.reset();
   value.reset();
   uint32_t flag = 0;
   do_next(key, value, flag);
 }
-void cursor::last(Item &key, Item &value) {
+void Cursor::last(Item &key, Item &value) {
   key.reset();
   value.reset();
   {
@@ -319,7 +316,7 @@ void cursor::last(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  node *node = nullptr;
+  Node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
   element.index = element.count() - 1;
@@ -328,7 +325,7 @@ void cursor::last(Item &key, Item &value) {
   uint32_t flag = 0;
   keyValue(key, value, flag);
 }
-void cursor::first(Item &key, Item &value) {
+void Cursor::first(Item &key, Item &value) {
   key.reset();
   value.reset();
   {
@@ -336,7 +333,7 @@ void cursor::first(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  node *node = nullptr;
+  Node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
 

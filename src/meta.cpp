@@ -3,9 +3,9 @@
 //
 
 #include "meta.h"
-#include <db.h>
+#include "db.h"
 namespace boltDB_CPP {
-bool meta::validate() {
+bool Meta::validate() {
   if (magic != MAGIC) {
     return false;
   }
@@ -19,8 +19,8 @@ bool meta::validate() {
   //  }
   return true;
 }
-void meta::write(Page *page) {
-  if (rootBucketHeader.root >= totalPageNumber) {
+void Meta::write(Page *page) {
+  if (rootBucketHeader.rootPageId >= totalPageNumber) {
     assert(false);
   }
   if (freeListPageNumber >= totalPageNumber) {
@@ -32,6 +32,6 @@ void meta::write(Page *page) {
 
   checkSum = 0;
 
-  std::memcpy(page->getMeta(), this, sizeof(meta));
+  std::memcpy(page->getMeta(), this, sizeof(Meta));
 }
 }  // namespace boltDB_CPP

@@ -50,7 +50,7 @@ struct Item {
 
   bool empty() const { return length == 0; }
 
-  Item clone(memory_pool *pool) {
+  Item clone(MemoryPool *pool) {
     char *ptr = pool->arrayCopy(pointer, length);
     return Item{ptr, length};
   }

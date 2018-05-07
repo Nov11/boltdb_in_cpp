@@ -6,11 +6,11 @@
 #define BOLTDB_IN_CPP_BUCKETHEADER_H
 #include "types.h"
 namespace boltDB_CPP {
-struct bucket_header {
-  page_id root = 0;
+struct BucketHeader {
+  page_id rootPageId = 0;
   uint64_t sequence = 0;
   void reset() {
-    root = 0;
+    rootPageId = 0;
     sequence = 0;
   }
 };

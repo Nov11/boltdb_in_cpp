@@ -8,15 +8,16 @@
 #include <cstdint>
 #include <stack>
 #include <vector>
+#include "db.h"
 #include "types.h"
 namespace boltDB_CPP {
 class Page;
-class node;
-class bucket;
+class Node;
+class Bucket;
 // reference to an element on a given page/node
 struct ElementRef {
   Page *page = nullptr;
-  node *node = nullptr;
+  Node *node = nullptr;
   uint64_t index = 0;  // DO NOT change this default ctor build up a ref to the
                        // first element in a page
   // is this a leaf page/node
@@ -25,21 +26,21 @@ struct ElementRef {
   // return the number of inodes or page elements
   size_t count() const;
 
-  ElementRef(Page *page_p, node *node_p) : page(page_p), node(node_p) {}
+  ElementRef(Page *page_p, Node *node_p) : page(page_p), node(node_p) {}
 };
 
-struct cursor {
-  bucket *bucket = nullptr;
+struct Cursor {
+  Bucket *bucket = nullptr;
   std::stack<ElementRef> stk;
 
-  cursor() = default;
-  explicit cursor(bucket *bucket1) : bucket(bucket1) {}
+  Cursor() = default;
+  explicit Cursor(Bucket *bucket1) : bucket(bucket1) {}
 
-  bucket *getBucket() const { return bucket; }
+  Bucket *getBucket() const { return bucket; }
   void search(const Item &key, page_id pageId);
   // search leaf node (which is on the top of the stack) for a Key
   void searchLeaf(const Item &key);
-  void searchBranchNode(const Item &key, node *node);
+  void searchBranchNode(const Item &key, Node *node);
   void searchBranchPage(const Item &key, Page *page);
   void keyValue(Item &key, Item &value, uint32_t &flag);
 
@@ -50,7 +51,7 @@ struct cursor {
   void seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag);
 
   // return the node the cursor is currently on
-  node *getNode() const;
+  Node *getNode() const;
 
   void do_next(Item &key, Item &value, uint32_t &flag);
 

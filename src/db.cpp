@@ -15,16 +15,16 @@
 #include "txn.h"
 #include "util.h"
 namespace boltDB_CPP {
-
-Page *boltDB_CPP::db::getPage(page_id pageId) {
+uint32_t DB::pageSize = DEFAULTPAGESIZE;
+Page *boltDB_CPP::DB::getPage(page_id pageId) {
   assert(pageSize != 0);
   uint64_t pos = pageId * pageSize;
   return reinterpret_cast<Page *>(&data[pos]);
 }
-FreeList &db::getFreeLIst() { return freeList; }
-uint64_t db::getPageSize() const { return pageSize; }
+FreeList &DB::getFreeLIst() { return freeList; }
+uint64_t DB::getPageSize() { return pageSize; }
 
-meta *db::meta() {
+Meta *DB::meta() {
   auto m0 = meta0;
   auto m1 = meta1;
   if (meta0->txnId > meta1->txnId) {
@@ -40,7 +40,7 @@ meta *db::meta() {
   }
   assert(false);
 }
-void db::removeTxn(txn *txn) {
+void DB::removeTxn(Txn *txn) {
   mmapLock.readUnlock();
   metaLock.lock();
 
@@ -53,7 +53,7 @@ void db::removeTxn(txn *txn) {
 
   metaLock.unlock();
 }
-int db::grow(size_t sz) {
+int DB::grow(size_t sz) {
   if (sz <= fileSize) {
     return 0;
   }
@@ -78,7 +78,7 @@ int db::grow(size_t sz) {
   fileSize = sz;
   return 0;
 }
-int db::init() {
+int DB::init() {
   // hard code page size
   this->pageSize = DEFAULTPAGESIZE;
 
@@ -93,7 +93,7 @@ int db::init() {
     m->version = VERSION;
     m->pageSize = pageSize;
     m->freeListPageNumber = 2;
-    m->rootBucketHeader.root = 3;
+    m->rootBucketHeader.rootPageId = 3;
     m->totalPageNumber = 4;
     m->txnId = i;
 
@@ -124,7 +124,7 @@ int db::init() {
 
   return 0;
 }
-Page *db::pageInBuffer(char *ptr, size_t length, page_id pageId) {
+Page *DB::pageInBuffer(char *ptr, size_t length, page_id pageId) {
   assert(length > pageId * pageSize);
   return reinterpret_cast<Page *>(ptr + pageId * pageSize);
 }
@@ -138,9 +138,9 @@ struct OnClose {
     }
   }
 };
-db *db::openDB(const std::string &path_p, uint16_t mode,
-                           const Options &options) {
-  OnClose{std::bind(&db::closeDB, this)};
+DB *DB::openDB(const std::string &path_p, uint16_t mode,
+               const Options &options) {
+  OnClose{std::bind(&DB::closeDB, this)};
   opened = true;
 
   noGrowSync = options.noGrowSync;
@@ -226,7 +226,7 @@ db *db::openDB(const std::string &path_p, uint16_t mode,
   freeList.read(getPage(meta()->freeListPageNumber));
   return this;
 }
-void db::closeDB() {
+void DB::closeDB() {
   std::lock_guard<std::mutex> guard1(readWriteAccessMutex);
   std::lock_guard<std::mutex> guard2(metaLock);
   mmapLock.readLock();
@@ -234,7 +234,7 @@ void db::closeDB() {
   mmapLock.readUnlock();
 }
 
-void db::do_closeDB() {
+void DB::do_closeDB() {
   if (!opened) {
     return;
   }
@@ -253,9 +253,9 @@ void db::do_closeDB() {
   path.clear();
 }
 
-int db::initMeta(off_t fileSize, off_t minMmapSize) {
+int DB::initMeta(off_t fileSize, off_t minMmapSize) {
   mmapLock.writeLock();
-  OnClose{std::bind(&rwlock::writeUnlock, &mmapLock)};
+  OnClose{std::bind(&RWLock::writeUnlock, &mmapLock)};
 
   if (fileSize < pageSize * 2) {
     // there should be at least 2 page of meta page
@@ -296,7 +296,7 @@ int db::initMeta(off_t fileSize, off_t minMmapSize) {
   return 0;
 }
 
-int db::mmapSize(off_t &targetSize) {
+int DB::mmapSize(off_t &targetSize) {
   // get lowest size not less than targetSize
   // from 32k to 1g, double every try
   for (size_t i = 15; i <= 30; i++) {
@@ -316,7 +316,7 @@ int db::mmapSize(off_t &targetSize) {
   exit(1);
   return 0;
 }
-int db::update(std::function<int(txn *tx)> fn) {
+int DB::update(std::function<int(Txn *tx)> fn) {
   auto tx = beginRWTx();
   if (tx == nullptr) {
     return -1;
@@ -333,7 +333,7 @@ int db::update(std::function<int(txn *tx)> fn) {
 }
 
 // when commit a rw txn, readWriteAccessMutex must be released
-txn *db::beginRWTx() {
+Txn *DB::beginRWTx() {
   // this property will only be set once
   if (readOnly) {
     return nullptr;
@@ -351,7 +351,7 @@ txn *db::beginRWTx() {
     readWriteAccessMutex.unlock();
     return nullptr;
   }
-  auto txn = txnPool.allocate<txn>();
+  auto txn = txnPool.allocate<Txn>();
   txn->writable = true;
   txn->init(this);
   rwtx = txn;
@@ -369,7 +369,7 @@ txn *db::beginRWTx() {
 }
 
 // when commit/abort a read only txn, mmaplock must be released
-txn *db::beginTx() {
+Txn *DB::beginTx() {
   std::lock_guard<std::mutex> guard(metaLock);
   mmapLock.readLock();
   if (!opened) {
@@ -377,14 +377,14 @@ txn *db::beginTx() {
     return nullptr;
   }
 
-  auto txn = txnPool.allocate<txn>();
+  auto txn = txnPool.allocate<Txn>();
   txn->init(this);
   txs.push_back(txn);
 
   return txn;
 }
 
-Page *db::allocate(size_t count, txn *txn) {
+Page *DB::allocate(size_t count, Txn *txn) {
   // buffer len for continuous page
   size_t len = count * pageSize;
   assert(count < UINT32_MAX);
@@ -423,7 +423,7 @@ Page *db::allocate(size_t count, txn *txn) {
   rwtx->metaData->totalPageNumber += count;
   return page;
 }
-int db::view(std::function<int(txn *tx)> fn) {
+int DB::view(std::function<int(Txn *tx)> fn) {
   auto tx = beginTx();
   if (tx == nullptr) {
     return -1;
@@ -443,7 +443,7 @@ int db::view(std::function<int(txn *tx)> fn) {
   tx->rollback();
   return 0;
 }
-void db::resetData() {
+void DB::resetData() {
   dataSize = 0;
   data = nullptr;
   dataref = nullptr;

@@ -4,8 +4,9 @@
 
 #ifndef BOLTDB_IN_CPP_METADATA_H
 #define BOLTDB_IN_CPP_METADATA_H
+#include "util.h"
 namespace boltDB_CPP {
-struct meta {
+struct Meta {
   uint32_t magic = 0;
   uint32_t version = 0;
   uint32_t pageSize = 0;
@@ -15,11 +16,11 @@ struct meta {
   page_id totalPageNumber = 0;
   txn_id txnId = 0;
   uint64_t checkSum = 0;
-  static meta *copyCreateFrom(meta *other) {
+  static Meta *copyCreateFrom(Meta *other) {
     if (other == nullptr) {
       return other;
     }
-    auto ret = new meta;
+    auto ret = new Meta;
     // member wise copy
     *ret = *other;
     return ret;

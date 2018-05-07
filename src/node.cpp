@@ -21,7 +21,7 @@ int cmp_wrapper<Inode>(const Inode &t, const Item &p) {
   }
   return -1;
 }
-void node::read(boltDB_CPP::Page *page) {
+void Node::read(boltDB_CPP::Page *page) {
   // this is called inside a function, should not receive nullptr
   assert(page);
   this->pageId = page->pageId;
@@ -51,13 +51,13 @@ void node::read(boltDB_CPP::Page *page) {
     key.reset();
   }
 }
-node *node::childAt(uint64_t index) {
+Node *Node::childAt(uint64_t index) {
   if (isLeaf) {
     assert(false);
   }
   return bucket->getNode(inodeList[index].pageId, this);
 }
-void node::do_remove(const Item &key) {
+void Node::do_remove(const Item &key) {
   bool found = false;
   size_t index = binary_search(inodeList, key, cmp_wrapper<Inode>,
                                inodeList.size(), found);
@@ -77,7 +77,7 @@ void node::do_remove(const Item &key) {
  * |page header| leafPageElement or branchPageElement ... | key & value ...|
  * @return
  */
-size_t node::size() const {
+size_t Node::size() const {
   size_t result = PAGEHEADERSIZE;
   for (size_t i = 0; i < inodeList.size(); i++) {
     result +=
@@ -85,25 +85,25 @@ size_t node::size() const {
   }
   return result;
 }
-size_t node::pageElementSize() const {
+size_t Node::pageElementSize() const {
   if (isLeaf) {
     return LEAFPAGEELEMENTSIZE;
   }
   return BUCKETHEADERSIZE;
 }
-node *node::root() {
+Node *Node::root() {
   if (parentNode == nullptr) {
     return this;
   }
   return parentNode->root();
 }
-size_t node::minKeys() const {
+size_t Node::minKeys() const {
   if (isLeaf) {
     return 1;
   }
   return 2;
 }
-bool node::sizeLessThan(size_t s) const {
+bool Node::sizeLessThan(size_t s) const {
   size_t sz = PAGEHEADERSIZE;
   for (size_t i = 0; i < inodeList.size(); i++) {
     sz +=
@@ -114,14 +114,14 @@ bool node::sizeLessThan(size_t s) const {
   }
   return true;
 }
-size_t node::childIndex(node *child) const {
+size_t Node::childIndex(Node *child) const {
   bool found = false;
   auto ret = binary_search(inodeList, child->key, cmp_wrapper<Inode>,
                            inodeList.size(), found);
   return ret;
 }
-size_t node::numChildren() const { return inodeList.size(); }
-node *node::nextSibling() {
+size_t Node::numChildren() const { return inodeList.size(); }
+Node *Node::nextSibling() {
   if (parentNode == nullptr) {
     return nullptr;
   }
@@ -132,9 +132,9 @@ node *node::nextSibling() {
   return parentNode->childAt(idx + 1);
 }
 
-void node::put(const Item &oldKey, const Item &newKey, const Item &value,
+void Node::put(const Item &oldKey, const Item &newKey, const Item &value,
                page_id pageId, uint32_t flag) {
-  if (pageId >= bucket->getTransaction()->metaData->totalPageNumber) {
+  if (pageId >= bucket->getTotalPageNumber()) {
     assert(false);
   }
   if (oldKey.length <= 0 || newKey.length <= 0) {
@@ -154,7 +154,7 @@ void node::put(const Item &oldKey, const Item &newKey, const Item &value,
   ref.pageId = pageId;
 }
 
-void node::del(const Item &key) {
+void Node::del(const Item &key) {
   bool found = false;
   auto ret = binary_search(inodeList, key, cmp_wrapper<Inode>, inodeList.size(),
                            found);
@@ -170,7 +170,7 @@ void node::del(const Item &key) {
   unbalanced = true;
 }
 // serialize itself into a given page
-void node::write(Page *page) {
+void Node::write(Page *page) {
   if (isLeaf) {
     page->flag |= static_cast<uint32_t>(PageFlag::leafPageFlag);
   } else {
@@ -211,13 +211,13 @@ void node::write(Page *page) {
     contentPtr += inodeList[i].value.length;
   }
 }
-std::vector<node *> node::split(size_t pageSize) {
-  std::vector<node *> result;
+std::vector<Node *> Node::split(size_t pageSize) {
+  std::vector<Node *> result;
 
   auto cur = this;
   while (true) {
-    node *a;
-    node *b;
+    Node *a;
+    Node *b;
     splitTwo(pageSize, a, b);
     result.push_back(a);
     if (b == nullptr) {
@@ -229,7 +229,7 @@ std::vector<node *> node::split(size_t pageSize) {
 }
 
 // used only inside split
-void node::splitTwo(size_t pageSize, node *&a, node *&b) {
+void Node::splitTwo(size_t pageSize, Node *&a, Node *&b) {
   if (inodeList.size() <= MINKEYSPERPAGE * 2 || sizeLessThan(pageSize)) {
     a = nullptr;
     b = nullptr;
@@ -251,12 +251,12 @@ void node::splitTwo(size_t pageSize, node *&a, node *&b) {
 
   if (parentNode == nullptr) {
     // using share pointer to deal with this
-    parentNode = bucket->tx->pool.allocate<node>();
+    parentNode = bucket->getPool().allocate<Node>();
     parentNode->bucket = bucket;
     parentNode->children.push_back(this);
   }
 
-  auto newNode = bucket->tx->pool.allocate<node>();
+  auto newNode = bucket->getPool().allocate<Node>();
   newNode->bucket = bucket;
   newNode->isLeaf = isLeaf;
   newNode->parentNode = parentNode;
@@ -266,9 +266,8 @@ void node::splitTwo(size_t pageSize, node *&a, node *&b) {
     newNode->inodeList.push_back(inodeList[i]);
   }
   inodeList.erase(inodeList.begin() + index, inodeList.end());
-  bucket->getTransaction()->stats.splitCount++;
 }
-size_t node::splitIndex(size_t threshold, size_t &sz) {
+size_t Node::splitIndex(size_t threshold, size_t &sz) {
   size_t index = 0;
   sz = PAGEHEADERSIZE;
   for (size_t i = 0; i < inodeList.size() - MINKEYSPERPAGE; i++) {
@@ -282,14 +281,14 @@ size_t node::splitIndex(size_t threshold, size_t &sz) {
   }
   return index;
 }
-void node::free() {
+void Node::free() {
   if (pageId) {
-    auto txn = bucket->getTransaction();
-    txn->db->getFreeLIst().free(txn->metaData->txnId, txn->getPage(pageId));
+    auto txn = bucket->getTxn();
+    txn->free(txn->txnId(), txn->getPage(pageId));
     pageId = 0;
   }
 }
-void node::removeChild(node *target) {
+void Node::removeChild(Node *target) {
   for (auto iter = children.begin(); iter != children.end(); iter++) {
     if (*iter == target) {
       children.erase(iter);
@@ -297,7 +296,7 @@ void node::removeChild(node *target) {
     }
   }
 }
-void node::dereference() {
+void Node::dereference() {
   //<del>
   // node lives in heap
   // nothing to be done here
@@ -314,13 +313,13 @@ void node::dereference() {
 
   // clone current node's key
   if (!key.empty()) {
-    key = key.clone(&bucket->tx->pool);
+    key = key.clone(&bucket->getPool());
   }
 
   // clone current node's kv pairs
   for (auto &item : inodeList) {
-    item.key = item.key.clone(&bucket->tx->pool);
-    item.value = item.value.clone(&bucket->tx->pool);
+    item.key = item.key.clone(&bucket->getPool());
+    item.value = item.value.clone(&bucket->getPool());
   }
 
   // do copy recursively
@@ -328,11 +327,11 @@ void node::dereference() {
     child->dereference();
   }
 }
-int node::spill() {
+int Node::spill() {
   if (spilled) {
     return 0;
   }
-  auto tx = bucket->getTransaction();
+  auto tx = bucket->getTxn();
 
   // by pointer value for now
   std::sort(children.begin(), children.end());
@@ -344,20 +343,19 @@ int node::spill() {
   }
 
   children.clear();
-  auto nodes = split(tx->db->getPageSize());
+  auto nodes = split(DB::getPageSize());
 
   for (auto &item : nodes) {
     if (item->pageId > 0) {
-      tx->db->getFreeLIst().free(tx->metaData->txnId,
-                                 tx->getPage(item->pageId));
+      tx->free(tx->txnId(), tx->getPage(item->pageId));
     }
 
-    auto page = tx->allocate((size() / tx->db->getPageSize()) + 1);
+    auto page = tx->allocate((size() / DB::getPageSize()) + 1);
     if (page == nullptr) {
       return -1;
     }
 
-    if (page->pageId >= tx->metaData->totalPageNumber) {
+    if (page->pageId >= tx->getTotalPageNumber()) {
       assert(false);
     }
     item->pageId = page->pageId;
@@ -375,7 +373,7 @@ int node::spill() {
       item->key = item->inodeList[0].key;
     }
 
-    tx->stats.spillCount++;
+    //    tx->stats.spillCount++;
   }
 
   if (parentNode && parentNode->pageId == 0) {
@@ -388,14 +386,14 @@ int node::spill() {
 /**
  * this should be named by 'merge sibling'
  */
-void node::rebalance() {
+void Node::rebalance() {
   if (!unbalanced) {
     return;
   }
   unbalanced = false;
-  bucket->getTransaction()->stats.rebalanceCount++;
+  //  bucket->getTxn()->stats.rebalanceCount++;
 
-  auto threshold = bucket->getTransaction()->db->getPageSize() / 4;
+  auto threshold = DB::getPageSize() / 4;
   if (size() > threshold && inodeList.size() > minKeys()) {
     return;
   }
@@ -411,20 +409,20 @@ void node::rebalance() {
 
       for (auto &item : inodeList) {
         // branch node will have a meaningful value in pageId field
-        auto iter = bucket->nodes.find(item.pageId);
+        auto n = bucket->getCachedNode(item.pageId);
         // what about those nodes that are not cached?
         // only in memory nodes will be write out to db file
         // that means if a branch node is not found/not accessed before
         // there should be something unexpected happening
-        if (iter != bucket->nodes.end()) {
-          iter->second->parentNode = this;
+        if (n) {
+          n->parentNode = this;
         } else {
           assert(false);
         }
       }
 
       child->parentNode = nullptr;
-      bucket->nodes.erase(child->pageId);
+      bucket->eraseCachedNode(child->pageId);
       child->free();
     }
 
@@ -434,7 +432,7 @@ void node::rebalance() {
   if (numChildren() == 0) {
     parentNode->del(key);
     parentNode->removeChild(this);
-    bucket->nodes.erase(pageId);
+    bucket->eraseCachedNode(pageId);
     free();
     parentNode->rebalance();
     return;
@@ -450,9 +448,8 @@ void node::rebalance() {
 
     // set sibling node's children's parent to current node
     for (auto &item : target->inodeList) {
-      auto iter = bucket->nodes.find(item.pageId);
-      if (iter != bucket->nodes.end()) {
-        auto &childNode = iter->second;
+      auto childNode = bucket->getCachedNode(item.pageId);
+      if (childNode) {
         childNode->parentNode->removeChild(childNode);
         childNode->parentNode = this;
         childNode->parentNode->children.push_back(childNode);
@@ -465,15 +462,14 @@ void node::rebalance() {
     // remove sibling node
     parentNode->del(target->key);
     parentNode->removeChild(target);
-    bucket->nodes.erase(target->pageId);
+    bucket->eraseCachedNode(target->pageId);
     target->free();
   } else {
     auto target = prevSibling();
 
     for (auto &item : target->inodeList) {
-      auto iter = bucket->nodes.find(item.pageId);
-      if (iter != bucket->nodes.end()) {
-        auto &childNode = iter->second;
+      auto childNode = bucket->getCachedNode(item.pageId);
+      if (childNode) {
         childNode->parentNode->removeChild(childNode);
         childNode->parentNode = this;
         childNode->parentNode->children.push_back(childNode);
@@ -484,14 +480,14 @@ void node::rebalance() {
               std::back_inserter(inodeList));
     parentNode->del(this->key);
     parentNode->removeChild(this);
-    bucket->nodes.erase(this->pageId);
+    bucket->eraseCachedNode(this->pageId);
     this->free();
   }
 
   // as parent node has one element removed, re-balance it
   parentNode->rebalance();
 }
-node *node::prevSibling() {
+Node *Node::prevSibling() {
   if (parentNode == nullptr) {
     return nullptr;
   }
@@ -500,6 +496,11 @@ node *node::prevSibling() {
     return nullptr;
   }
   return parentNode->childAt(idx - 1);
+}
+size_t Node::search(const Item &key, bool &found) {
+  auto ret = binary_search(inodeList, key, cmp_wrapper<Inode>, inodeList.size(),
+                           found);
+  return ret;
 }
 
 }  // namespace boltDB_CPP
