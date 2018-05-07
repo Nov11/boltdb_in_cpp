@@ -4,20 +4,21 @@
 
 #ifndef BOLTDB_IN_CPP_RWLOCK_H
 #define BOLTDB_IN_CPP_RWLOCK_H
-#include <condition_variable>
 #include <climits>
+#include <condition_variable>
 
 namespace boltDB_CPP {
-class RWLock {
+class rwlock {
   bool write_entered;
   size_t reader_count;
   std::mutex mtx;
   std::condition_variable reader;
   std::condition_variable writer;
+
  public:
-  RWLock() : write_entered(false), reader_count(0) {}
-  RWLock(const RWLock &) = delete;
-  RWLock &operator=(const RWLock &) = delete;
+  rwlock() : write_entered(false), reader_count(0) {}
+  rwlock(const rwlock &) = delete;
+  rwlock &operator=(const rwlock &) = delete;
 
   void readLock() {
     std::unique_lock<std::mutex> lock(mtx);
@@ -32,7 +33,8 @@ class RWLock {
   void readUnlock() {
     std::lock_guard<std::mutex> guard(mtx);
     if (reader_count == 0) {
-      throw std::runtime_error("try release read lock without any reader holding the lock");
+      throw std::runtime_error(
+          "try release read lock without any reader holding the lock");
     }
     reader_count--;
     if (write_entered && reader_count == 0) {
@@ -55,6 +57,6 @@ class RWLock {
     reader.notify_all();
   }
 };
-}
+}  // namespace boltDB_CPP
 
-#endif //BOLTDB_IN_CPP_RWLOCK_H
+#endif  // BOLTDB_IN_CPP_RWLOCK_H

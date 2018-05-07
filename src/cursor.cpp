@@ -2,15 +2,15 @@
 // Created by c6s on 18-4-27.
 //
 
+#include "cursor.h"
+#include <algorithm>
 #include <cassert>
 #include <iostream>
-#include <algorithm>
-#include "Node.h"
-#include "Util.h"
-#include "Cursor.h"
-#include "Database.h"
-#include "Bucket.h"
-#include "Txn.h"
+#include "bucket.h"
+#include "db.h"
+#include "node.h"
+#include "txn.h"
+#include "util.h"
 
 namespace boltDB_CPP {
 
@@ -19,7 +19,7 @@ bool ElementRef::isLeaf() const {
     return node->isLeaf;
   }
   assert(page);
-  return (page->flag & static_cast<uint16_t >( PageFlag::leafPageFlag)) != 0;
+  return (page->flag & static_cast<uint16_t>(PageFlag::leafPageFlag)) != 0;
 }
 
 size_t ElementRef::count() const {
@@ -30,15 +30,16 @@ size_t ElementRef::count() const {
   return page->count;
 }
 
-void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
+void cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   assert(!stk.empty());
   auto ref = stk.top();
   if (ref.count() == 0 || ref.index >= ref.count()) {
-    std::cerr << "get Key/value from empty bucket / index out of range" << std::endl;
+    std::cerr << "get Key/value from empty bucket / index out of range"
+              << std::endl;
     return;
   }
 
-  //are those values sitting a node?
+  // are those values sitting a node?
   if (ref.node) {
     auto inode = ref.node->inodeList[ref.index];
     key = inode.Key();
@@ -47,7 +48,7 @@ void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
     return;
   }
 
-  //let's get them from page
+  // let's get them from page
   auto ret = ref.page->getLeafPageElement(ref.index);
   key = ret->Key();
   value = ret->Value();
@@ -55,12 +56,13 @@ void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
   return;
 }
 
-void Cursor::search(const Item &key, page_id pageId) {
-  Node *node = nullptr;
+void cursor::search(const Item &key, page_id pageId) {
+  node *node = nullptr;
   Page *page = nullptr;
   bucket->getPageNode(pageId, node, page);
-  if (page && (page->getFlag()
-      & (static_cast<uint16_t >(PageFlag::branchPageFlag) | static_cast<uint16_t >(PageFlag::leafPageFlag)))) {
+  if (page &&
+      (page->getFlag() & (static_cast<uint16_t>(PageFlag::branchPageFlag) |
+                          static_cast<uint16_t>(PageFlag::leafPageFlag)))) {
     assert(false);
   }
   ElementRef ref{page, node};
@@ -77,35 +79,28 @@ void Cursor::search(const Item &key, page_id pageId) {
   searchBranchPage(key, page);
 }
 
-void Cursor::searchLeaf(const Item &key) {
+void cursor::searchLeaf(const Item &key) {
   assert(!stk.empty());
   ElementRef &ref = stk.top();
 
   bool found = false;
   if (ref.node) {
-    //search through inodeList for a matching Key
-    //inodelist should be sorted in ascending order
-    ref.index =
-        static_cast<uint32_t >(binary_search(ref.node->inodeList,
-                                             key,
-                                             cmp_wrapper<Inode>,
-                                             ref.node->inodeList.size(),
-                                             found
-        ));
+    // search through inodeList for a matching Key
+    // inodelist should be sorted in ascending order
+    ref.index = static_cast<uint32_t>(
+        binary_search(ref.node->inodeList, key, cmp_wrapper<Inode>,
+                      ref.node->inodeList.size(), found));
     return;
   }
 
   auto ptr = ref.page->getLeafPageElement(0);
-  ref.index = static_cast<uint32_t >(binary_search(ptr,
-                                                   key,
-                                                   cmp_wrapper<LeafPageElement>,
-                                                   ref.page->count,
-                                                   found
-  ));
+  ref.index = static_cast<uint32_t>(binary_search(
+      ptr, key, cmp_wrapper<LeafPageElement>, ref.page->count, found));
 }
-void Cursor::searchBranchNode(const Item &key, Node *node) {
+void cursor::searchBranchNode(const Item &key, node *node) {
   bool found = false;
-  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode>, node->inodeList.size(), found);
+  auto index = binary_search(node->inodeList, key, cmp_wrapper<Inode>,
+                             node->inodeList.size(), found);
   if (!found && index > 0) {
     index--;
   }
@@ -113,10 +108,11 @@ void Cursor::searchBranchNode(const Item &key, Node *node) {
   stk.top().index = index;
   search(key, node->inodeList[index].pageId);
 }
-void Cursor::searchBranchPage(const Item &key, Page *page) {
+void cursor::searchBranchPage(const Item &key, Page *page) {
   auto branchElements = page->getBranchPageElement(0);
   bool found = false;
-  auto index = binary_search(branchElements, key, cmp_wrapper<BranchPageElement>, page->count, found);
+  auto index = binary_search(
+      branchElements, key, cmp_wrapper<BranchPageElement>, page->count, found);
   if (!found && index > 0) {
     index--;
   }
@@ -124,7 +120,7 @@ void Cursor::searchBranchPage(const Item &key, Page *page) {
   stk.top().index = index;
   search(key, branchElements[index].pageId);
 }
-void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
+void cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
   {
     decltype(stk) tmp;
     swap(stk, tmp);
@@ -145,7 +141,7 @@ void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
  * refactory this after main components are implemented
  * @return
  */
-Node *Cursor::getNode() const {
+node *cursor::getNode() const {
   if (!stk.empty() && stk.top().node && stk.top().isLeaf()) {
     stk.top().node;
   }
@@ -159,7 +155,7 @@ Node *Cursor::getNode() const {
   std::reverse(v.begin(), v.end());
 
   assert(!v.empty());
-  Node *node = v[0].node;
+  node *node = v[0].node;
   if (node == nullptr) {
     node = bucket->getNode(v[0].page->pageId, nullptr);
   }
@@ -172,11 +168,11 @@ Node *Cursor::getNode() const {
   assert(node->isLeaf);
   return node;
 }
-void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
+void cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   while (true) {
     while (!stk.empty()) {
       auto &ref = stk.top();
-      //not the last element
+      // not the last element
       if (ref.index < ref.count() - 1) {
         ref.index++;
         break;
@@ -192,7 +188,7 @@ void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
     }
 
     do_first();
-    //not sure what this intends to do
+    // not sure what this intends to do
     if (stk.top().count() == 0) {
       continue;
     }
@@ -202,8 +198,8 @@ void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   }
 }
 
-//get to first leaf element under the last page in the stack
-void Cursor::do_first() {
+// get to first leaf element under the last page in the stack
+void cursor::do_first() {
   while (true) {
     assert(!stk.empty());
     if (stk.top().isLeaf()) {
@@ -219,13 +215,13 @@ void Cursor::do_first() {
     }
 
     Page *page = nullptr;
-    Node *node = nullptr;
+    node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     stk.push(element);
   }
 }
-void Cursor::do_last() {
+void cursor::do_last() {
   while (true) {
     auto &ref = stk.top();
     if (ref.isLeaf()) {
@@ -240,14 +236,14 @@ void Cursor::do_last() {
     }
 
     Page *page = nullptr;
-    Node *node = nullptr;
+    node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     element.index = element.count() - 1;
     stk.push(element);
   }
 }
-int Cursor::remove() {
+int cursor::remove() {
   if (bucket->getTransaction()->db == nullptr) {
     std::cerr << "db closed" << std::endl;
     return -1;
@@ -264,14 +260,17 @@ int Cursor::remove() {
   keyValue(key, value, flag);
 
   if (flag & static_cast<uint32_t>(PageFlag::bucketLeafFlag)) {
-    std::cerr << "current value is a bucket| try removing a branch bucket other than kv in leaf node" << std::endl;
+    std::cerr << "current value is a bucket| try removing a branch bucket "
+                 "other than kv in leaf node"
+              << std::endl;
     return -1;
   }
 
   getNode()->do_remove(key);
   return 0;
 }
-void Cursor::seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag) {
+void cursor::seek(const Item &searchKey, Item &key, Item &value,
+                  uint32_t &flag) {
   key.reset();
   value.reset();
   flag = 0;
@@ -285,7 +284,7 @@ void Cursor::seek(const Item &searchKey, Item &key, Item &value, uint32_t &flag)
   }
   keyValue(key, value, flag);
 }
-void Cursor::prev(Item &key, Item &value) {
+void cursor::prev(Item &key, Item &value) {
   key.reset();
   value.reset();
   while (!stk.empty()) {
@@ -304,16 +303,15 @@ void Cursor::prev(Item &key, Item &value) {
   do_last();
   uint32_t flag = 0;
   keyValue(key, value, flag);
-  //I think there's no need to clear value if current node is a branch node
-
+  // I think there's no need to clear value if current node is a branch node
 }
-void Cursor::next(Item &key, Item &value) {
+void cursor::next(Item &key, Item &value) {
   key.reset();
   value.reset();
   uint32_t flag = 0;
   do_next(key, value, flag);
 }
-void Cursor::last(Item &key, Item &value) {
+void cursor::last(Item &key, Item &value) {
   key.reset();
   value.reset();
   {
@@ -321,7 +319,7 @@ void Cursor::last(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  Node *node = nullptr;
+  node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
   element.index = element.count() - 1;
@@ -330,7 +328,7 @@ void Cursor::last(Item &key, Item &value) {
   uint32_t flag = 0;
   keyValue(key, value, flag);
 }
-void Cursor::first(Item &key, Item &value) {
+void cursor::first(Item &key, Item &value) {
   key.reset();
   value.reset();
   {
@@ -338,7 +336,7 @@ void Cursor::first(Item &key, Item &value) {
     swap(stk, tmp);
   }
   Page *page = nullptr;
-  Node *node = nullptr;
+  node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
 
@@ -346,12 +344,11 @@ void Cursor::first(Item &key, Item &value) {
   do_first();
 
   uint32_t flag = 0;
-  //what does this do?
+  // what does this do?
   if (stk.top().count() == 0) {
     do_next(key, value, flag);
   }
 
   keyValue(key, value, flag);
 }
-}
-
+}  // namespace boltDB_CPP

@@ -4,9 +4,9 @@
 
 #ifndef BOLTDB_IN_CPP_BUCKETHEADER_H
 #define BOLTDB_IN_CPP_BUCKETHEADER_H
-#include "Types.h"
+#include "types.h"
 namespace boltDB_CPP {
-struct BucketHeader {
+struct bucket_header {
   page_id root = 0;
   uint64_t sequence = 0;
   void reset() {
@@ -14,5 +14,5 @@ struct BucketHeader {
     sequence = 0;
   }
 };
-}
-#endif //BOLTDB_IN_CPP_BUCKETHEADER_H
+}  // namespace boltDB_CPP
+#endif  // BOLTDB_IN_CPP_BUCKETHEADER_H

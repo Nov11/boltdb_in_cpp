@@ -4,8 +4,8 @@
 
 #ifndef BOLTDB_IN_CPP_METADATA_H
 #define BOLTDB_IN_CPP_METADATA_H
-namespace boltDB_CPP{
-struct Meta {
+namespace boltDB_CPP {
+struct meta {
   uint32_t magic = 0;
   uint32_t version = 0;
   uint32_t pageSize = 0;
@@ -15,21 +15,20 @@ struct Meta {
   page_id totalPageNumber = 0;
   txn_id txnId = 0;
   uint64_t checkSum = 0;
-  static Meta *copyCreateFrom(Meta *other) {
+  static meta *copyCreateFrom(meta *other) {
     if (other == nullptr) {
       return other;
     }
-    auto ret = new Meta;
-    //member wise copy
+    auto ret = new meta;
+    // member wise copy
     *ret = *other;
     return ret;
   }
   bool validate();
-//  uint64_t sum64();
+  //  uint64_t sum64();
 
   void write(Page *page);
 };
-}
+}  // namespace boltDB_CPP
 
-
-#endif //BOLTDB_IN_CPP_METADATA_H
+#endif  // BOLTDB_IN_CPP_METADATA_H

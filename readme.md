@@ -21,6 +21,11 @@
 - [x] db
 - [ ] test cases
 
+### later
+- [ ] batch support
+- [ ] status
+- [ ] better error message
+
 ### on disk file layouts
 #### file
 * |page 0|page 1|page 2  |page 3   |...| <- general  
@@ -44,3 +49,15 @@
 ### great resource:
 * [a series of source code reading blogs(by oceanken)](https://www.jianshu.com/p/b86a69892990)
 * [bucket data structure explanation (2016)](http://www.d-kai.me/boltdb%E4%B9%8Bbucket%E4%B8%80/)
+
+### lock lifetime
+* file lock on db file
+    * (acquire)when opening db in read only way, it grabs a share lock. An exclusive lock if in read write mode.
+    * (release)when 'closeDB' is invoked, it releases the lock if grabbed an exclusive lock. Do nothing if grabbed a shared lock. 
+    As shared lock will be released implicitly when closing the related file descriptor, a invocation of flock with LOCK_UN will be
+    redundant.
+* readWriteAccessMutex
+    * (acquire)when starting a read/write txn
+    * (release)when committing a txn(it must be a read write txn)
+* mmaplock
+* metalock

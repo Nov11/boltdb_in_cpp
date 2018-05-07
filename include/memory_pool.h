@@ -5,12 +5,12 @@
 #ifndef BOLTDB_IN_CPP_MEMORYPOOL_H
 #define BOLTDB_IN_CPP_MEMORYPOOL_H
 
-#include <cstddef>
-#include <utility>
 #include <algorithm>
-#include <vector>
 #include <cassert>
+#include <cstddef>
 #include <cstring>
+#include <utility>
+#include <vector>
 namespace boltDB_CPP {
 
 /**
@@ -20,13 +20,14 @@ namespace boltDB_CPP {
  * nor will this works with hierarchy.
  * it CANNOT be used with new / shared / unique pointer.
  *
- * MemoryPool may not be a descriptive name since it doesn't have a 'pool' of memory spaces at all.
- * But it fits my need for now.
+ * MemoryPool may not be a descriptive name since it doesn't have a 'pool' of
+ * memory spaces at all. But it fits my need for now.
  */
-class MemoryPool {
+class memory_pool {
   std::vector<char *> arrays;
+
  public:
-  ~MemoryPool() {
+  ~memory_pool() {
     for (auto item : arrays) {
       delete[] item;
     }
@@ -39,10 +40,10 @@ class MemoryPool {
     arrays.push_back(ret);
     return ret;
   }
-  template<class T, class ... Args>
+  template <class T, class... Args>
   T *allocate(Args &&... args) {
     auto ret = allocateByteArray(sizeof(T));
-    new(ret) T(std::forward<Args>(args)...);
+    new (ret) T(std::forward<Args>(args)...);
     return reinterpret_cast<T *>(ret);
   }
   void deallocateByteArray(char *ptr) {
@@ -51,7 +52,7 @@ class MemoryPool {
     delete[] ptr;
     arrays.erase(iter);
   }
-  template<class T>
+  template <class T>
   void deallocate(T *ptr) {
     char *cptr = reinterpret_cast<char *>(ptr);
     deallocateByteArray(cptr);
@@ -61,9 +62,9 @@ class MemoryPool {
     std::memcpy(ret, src, len);
     return ret;
   }
-  MemoryPool operator=(const MemoryPool &) = delete;
-  MemoryPool(const MemoryPool &) = delete;
-  MemoryPool() = default;
+  memory_pool operator=(const memory_pool &) = delete;
+  memory_pool(const memory_pool &) = delete;
+  memory_pool() = default;
 };
-}
-#endif //BOLTDB_IN_CPP_MEMORYPOOL_H
+}  // namespace boltDB_CPP
+#endif  // BOLTDB_IN_CPP_MEMORYPOOL_H

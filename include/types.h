@@ -6,15 +6,15 @@
 #define BOLTDB_IN_CPP_BOLTDB_TYPES_H
 #include <cstdint>
 #include <functional>
-#include "MemoryPool.h"
+#include "memory_pool.h"
 namespace boltDB_CPP {
 
 typedef uint64_t txn_id;
 typedef uint64_t page_id;
 
-//this is used to hold values from page element
-//it doesn't own any memory resource
-//value copy is exactly what I want
+// this is used to hold values from page element
+// it doesn't own any memory resource
+// value copy is exactly what I want
 struct Item {
   const char *pointer = nullptr;
   size_t length = 0;
@@ -48,23 +48,22 @@ struct Item {
     length = 0;
   }
 
-  bool empty() const {
-    return length == 0;
-  }
+  bool empty() const { return length == 0; }
 
-  Item clone(MemoryPool *pool) {
+  Item clone(memory_pool *pool) {
     char *ptr = pool->arrayCopy(pointer, length);
     return Item{ptr, length};
   }
 };
-}
+}  // namespace boltDB_CPP
 
 namespace std {
-template<>
+template <>
 struct hash<boltDB_CPP::Item> {
   std::size_t operator()(const boltDB_CPP::Item &k) const {
-    return hash<size_t>()(reinterpret_cast<size_t >(k.pointer)) ^ hash<size_t>()(k.length);
+    return hash<size_t>()(reinterpret_cast<size_t>(k.pointer)) ^
+           hash<size_t>()(k.length);
   }
 };
-}
-#endif //BOLTDB_IN_CPP_BOLTDB_TYPES_H
+}  // namespace std
+#endif  // BOLTDB_IN_CPP_BOLTDB_TYPES_H

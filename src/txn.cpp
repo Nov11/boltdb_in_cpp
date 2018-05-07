@@ -1,16 +1,16 @@
 //
 // Created by c6s on 18-4-26.
 //
+#include "txn.h"
 #include <algorithm>
 #include <cstring>
-#include "Database.h"
-#include "Util.h"
-#include "Bucket.h"
-#include "Txn.h"
-#include "Meta.h"
+#include "bucket.h"
+#include "db.h"
+#include "meta.h"
+#include "util.h"
 namespace boltDB_CPP {
 
-Page *boltDB_CPP::Txn::getPage(page_id pageId) {
+Page *boltDB_CPP::txn::getPage(page_id pageId) {
   if (!dirtyPageTable.empty()) {
     auto iter = dirtyPageTable.find(pageId);
     if (iter != dirtyPageTable.end()) {
@@ -20,8 +20,8 @@ Page *boltDB_CPP::Txn::getPage(page_id pageId) {
   return db->getPage(pageId);
 }
 
-Page *Txn::allocate(size_t count) {
-  auto ret = db->allocate(count,this);
+Page *txn::allocate(size_t count) {
+  auto ret = db->allocate(count, this);
   if (ret == nullptr) {
     return ret;
   }
@@ -33,11 +33,12 @@ Page *Txn::allocate(size_t count) {
   return ret;
 }
 
-void Txn::for_each_page(page_id pageId, int depth, std::function<void(Page *, int)> fn) {
+void txn::for_each_page(page_id pageId, int depth,
+                        std::function<void(Page *, int)> fn) {
   auto p = getPage(pageId);
   fn(p, depth);
 
-  if (p->flag & static_cast<uint32_t >(PageFlag::branchPageFlag)) {
+  if (p->flag & static_cast<uint32_t>(PageFlag::branchPageFlag)) {
     for (int i = 0; i < p->getCount(); i++) {
       auto element = p->getBranchPageElement(i);
       for_each_page(element->pageId, depth, fn);
@@ -45,10 +46,10 @@ void Txn::for_each_page(page_id pageId, int depth, std::function<void(Page *, in
   }
 }
 
-void Txn::init(Database *db) {
+void txn::init(db *db) {
   this->db = db;
-  metaData = Meta::copyCreateFrom(db->meta());
-  //todo:reset bucket using member function
+  metaData = meta::copyCreateFrom(db->meta());
+  // todo:reset bucket using member function
   rootBucket = *newBucket(this);
   rootBucket.bucketHeader = metaData->rootBucketHeader;
   if (writable) {
@@ -56,43 +57,40 @@ void Txn::init(Database *db) {
   }
 }
 
-Bucket *Txn::getBucket(const Item &name) {
+bucket *txn::getBucket(const Item &name) {
   return rootBucket.getBucketByName(name);
 }
 
-Bucket *Txn::createBucket(const Item &name) {
+bucket *txn::createBucket(const Item &name) {
   return rootBucket.createBucket(name);
 }
 
-Bucket *Txn::createBucketIfNotExists(const Item &name) {
+bucket *txn::createBucketIfNotExists(const Item &name) {
   return rootBucket.createBucketIfNotExists(name);
 }
 
-int Txn::deleteBucket(const Item &name) {
-  rootBucket.deleteBucket(name);
-}
+int txn::deleteBucket(const Item &name) { rootBucket.deleteBucket(name); }
 
-int Txn::for_each(std::function<int(const Item &name, Bucket *b)> fn) {
+int txn::for_each(std::function<int(const Item &name, bucket *b)> fn) {
   return rootBucket.for_each([&fn, this](const Item &k, const Item &v) -> int {
     auto ret = fn(k, rootBucket.getBucketByName(k));
     return ret;
   });
 }
 
-void Txn::OnCommit(std::function<void()> fn) {
-  commitHandlers.push_back(fn);
-}
+void txn::OnCommit(std::function<void()> fn) { commitHandlers.push_back(fn); }
 
 /**
  *
- * @return disk write error / called on read only txn (what? I think read only txn should succeed on doing commit)
+ * @return disk write error / called on read only txn (what? I think read only
+ * txn should succeed on doing commit)
  */
-int Txn::commit() {
+int txn::commit() {
   if (db == nullptr || !isWritable()) {
     return -1;
   }
 
-  //recursively merge nodes of which numbers of elements are below threshold
+  // recursively merge nodes of which numbers of elements are below threshold
   rootBucket.rebalance();
   if (rootBucket.spill()) {
     rollback();
@@ -134,13 +132,13 @@ int Txn::commit() {
 
   closeTxn();
 
-  for (auto &item :commitHandlers) {
+  for (auto &item : commitHandlers) {
     item();
   }
   return 0;
 }
 
-void Txn::rollback() {
+void txn::rollback() {
   if (db == nullptr) {
     return;
   }
@@ -151,14 +149,14 @@ void Txn::rollback() {
   closeTxn();
 }
 
-void Txn::closeTxn() {
+void txn::closeTxn() {
   if (db == nullptr) {
     return;
   }
 
   if (writable) {
     db->rwtx = nullptr;
-    db->rwlock.unlock();
+    db->readWriteAccessMutex.unlock();
   } else {
     db->removeTxn(this);
   }
@@ -166,12 +164,12 @@ void Txn::closeTxn() {
   db = nullptr;
   metaData = nullptr;
   dirtyPageTable.clear();
-  //need a new root bucket
+  // need a new root bucket
   rootBucket.reset();
   rootBucket.tx = this;
 }
 
-int Txn::writeMeta() {
+int txn::writeMeta() {
   std::vector<char> tmp(db->getPageSize());
   Page *page = reinterpret_cast<Page *>(tmp.data());
   metaData->write(page);
@@ -188,7 +186,7 @@ int Txn::writeMeta() {
   return 0;
 }
 
-int Txn::write() {
+int txn::write() {
   std::vector<Page *> pages;
   for (auto item : dirtyPageTable) {
     pages.push_back(item.second);
@@ -213,7 +211,7 @@ int Txn::write() {
   return 0;
 }
 
-bool Txn::freelistcheck() {
+bool txn::freelistcheck() {
   std::map<page_id, bool> hash;
   for (auto item : db->freeList.pageIds) {
     if (hash.find(item) != hash.end()) {
@@ -234,8 +232,10 @@ bool Txn::freelistcheck() {
   std::map<page_id, Page *> pmap;
   pmap[0] = getPage(0);
   pmap[1] = getPage(1);
-  for (size_t i = 0; i <= getPage(metaData->freeListPageNumber)->overflow; i++) {
-    pmap[metaData->freeListPageNumber + i] = getPage(metaData->freeListPageNumber);
+  for (size_t i = 0; i <= getPage(metaData->freeListPageNumber)->overflow;
+       i++) {
+    pmap[metaData->freeListPageNumber + i] =
+        getPage(metaData->freeListPageNumber);
   }
 
   if (checkBucket(rootBucket, pmap, hash)) {
@@ -250,37 +250,39 @@ bool Txn::freelistcheck() {
   return false;
 }
 
-bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable, std::map<page_id, bool> &freed) {
+bool txn::checkBucket(bucket &bucket, std::map<page_id, Page *> &reachable,
+                      std::map<page_id, bool> &freed) {
   if (bucket.bucketHeader.root == 0) {
     return true;
   }
   bool ret = true;
-  bucket.tx->for_each_page(bucket.bucketHeader.root, 0, [&, this](Page *page, int i) {
-    if (page->pageId > metaData->totalPageNumber) {
-      ret = false;
-      return;
-    }
+  bucket.tx->for_each_page(
+      bucket.bucketHeader.root, 0, [&, this](Page *page, int i) {
+        if (page->pageId > metaData->totalPageNumber) {
+          ret = false;
+          return;
+        }
 
-    for (size_t i = 0; i <= page->overflow; i++) {
-      auto id = page->pageId + i;
-      if (reachable.find(id) != reachable.end()) {
-        //multiple reference
-        ret = false;
-        return;
-      }
-      reachable[id] = page;
-    }
+        for (size_t i = 0; i <= page->overflow; i++) {
+          auto id = page->pageId + i;
+          if (reachable.find(id) != reachable.end()) {
+            // multiple reference
+            ret = false;
+            return;
+          }
+          reachable[id] = page;
+        }
 
-    if (freed.find(page->pageId) != freed.end()) {
-      ret = false;
-      return;
-    }
+        if (freed.find(page->pageId) != freed.end()) {
+          ret = false;
+          return;
+        }
 
-    PageFlag pf = static_cast<PageFlag >(page->flag);
-    if (pf != PageFlag::branchPageFlag && pf != PageFlag::leafPageFlag) {
-      return;
-    }
-  });
+        PageFlag pf = static_cast<PageFlag>(page->flag);
+        if (pf != PageFlag::branchPageFlag && pf != PageFlag::leafPageFlag) {
+          return;
+        }
+      });
 
   if (!ret) {
     return ret;
@@ -295,4 +297,4 @@ bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable, std:
   });
   return true;
 }
-}
+}  // namespace boltDB_CPP

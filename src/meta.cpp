@@ -2,10 +2,10 @@
 // Created by c6s on 18-5-4.
 //
 
-#include <Database.h>
-#include "Meta.h"
+#include "meta.h"
+#include <db.h>
 namespace boltDB_CPP {
-bool Meta::validate() {
+bool meta::validate() {
   if (magic != MAGIC) {
     return false;
   }
@@ -14,12 +14,12 @@ bool Meta::validate() {
     return false;
   }
 
-//  if (checkSum != 0 && checkSum != sum64()) {
-//    return false;
-//  }
+  //  if (checkSum != 0 && checkSum != sum64()) {
+  //    return false;
+  //  }
   return true;
 }
-void Meta::write(Page *page) {
+void meta::write(Page *page) {
   if (rootBucketHeader.root >= totalPageNumber) {
     assert(false);
   }
@@ -28,10 +28,10 @@ void Meta::write(Page *page) {
   }
 
   page->pageId = txnId % 2;
-  page->flag |= static_cast<uint32_t >(PageFlag::metaPageFlag);
+  page->flag |= static_cast<uint32_t>(PageFlag::metaPageFlag);
 
   checkSum = 0;
 
-  std::memcpy(page->getMeta(), this, sizeof(Meta));
+  std::memcpy(page->getMeta(), this, sizeof(meta));
 }
-}
+}  // namespace boltDB_CPP
