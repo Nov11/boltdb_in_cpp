@@ -1,7 +1,7 @@
 //
 // Created by c6s on 18-5-5.
 //
-
+#include <memory>
 #include <chrono>
 #include "db.h"
 #include "gtest/gtest.h"
