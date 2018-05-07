@@ -29,7 +29,7 @@ int file_Rlock(int fd) { return file_lock_nonblocking(fd, LOCK_SH | LOCK_NB); }
 int file_Unlock(int fd) { return file_lock_nonblocking(fd, LOCK_UN | LOCK_NB); }
 
 int mmap_db_file(DB *database, size_t sz) {
-  void *ret = ::mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->fd, 0);
+  void *ret = ::mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->getFd(), 0);
   if (ret == MAP_FAILED) {
     perror("mmap");
     return -1;
@@ -41,26 +41,16 @@ int mmap_db_file(DB *database, size_t sz) {
     return -1;
   }
 
-  database->data = reinterpret_cast<decltype(database->data)>(ret);
-  database->dataref = (ret);
-  database->dataSize = (sz);
+//  database->data = reinterpret_cast<decltype(database->data)>(ret);
+//  database->dataref = (ret);
+//  database->dataSize = (sz);
+  database->resetData(ret, ret, sz);
 }
 
-// un-map database file from memory
-int munmap_db_file(DB *database) {
-  // return if it has no mapping data
-  if (database->dataref == nullptr) {
-    return 0;
-  }
-  int ret = ::munmap(database->dataref, database->dataSize);
-  if (ret == -1) {
-    perror("munmap");
-    return ret;
-  }
-
-  database->resetData();
-  return 0;
-}
+//// un-map database file from memory
+//int munmap_db_file(DB *database) {
+//
+//}
 
 int file_data_sync(int fd) {
   int ret = fdatasync(fd);

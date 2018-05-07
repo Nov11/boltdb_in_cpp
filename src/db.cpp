@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstring>
 #include <utility>
+#include <sys/mman.h>
 #include "meta.h"
 #include "txn.h"
 #include "util.h"
@@ -241,7 +242,7 @@ void DB::do_closeDB() {
 
   opened = false;
   freeList.reset();
-  munmap_db_file(this);
+  munmap_db_file();
 
   if (fd) {
     if (!readOnly) {
@@ -277,7 +278,7 @@ int DB::initMeta(off_t fileSize, off_t minMmapSize) {
   }
 
   // unmapping current db file
-  if (munmap_db_file(this)) {
+  if (munmap_db_file()) {
     return -1;
   }
 
@@ -448,6 +449,25 @@ void DB::resetData() {
   data = nullptr;
   dataref = nullptr;
 }
+void DB::resetData(void *data_p, void *dataref_p, size_t datasz_p) {
+  data = reinterpret_cast<decltype(data)>(data_p);
+  dataref = dataref_p;
+  dataSize = datasz_p;
+}
+int DB::munmap_db_file() {
+  // return if it has no mapping data
+  if (dataref == nullptr) {
+    return 0;
+  }
+  int ret = ::munmap(dataref, dataSize);
+  if (ret == -1) {
+    perror("munmap");
+    return ret;
+  }
+
+  resetData();
+  return 0;
+}
 
 void FreeList::free(txn_id tid, Page *page) {
   // meta page will never be freed
@@ -466,7 +486,7 @@ void FreeList::free(txn_id tid, Page *page) {
   }
 }
 
-size_t FreeList::size() {
+size_t FreeList::size() const {
   auto ret = count();
 
   if (ret >= 0xffff) {
@@ -476,11 +496,11 @@ size_t FreeList::size() {
   return PAGEHEADERSIZE + ret * sizeof(page_id);
 }
 
-size_t FreeList::count() { return free_count() + pending_count(); }
+size_t FreeList::count() const { return free_count() + pending_count(); }
 
-size_t FreeList::free_count() { return pageIds.size(); }
+size_t FreeList::free_count() const { return pageIds.size(); }
 
-size_t FreeList::pending_count() {
+size_t FreeList::pending_count() const {
   size_t result = 0;
   for (auto &item : pending) {
     result += item.second.size();

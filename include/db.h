@@ -58,10 +58,10 @@ struct FreeList {
   std::map<page_id, bool> cache;  // all free & pending page_ids
 
   void free(txn_id tid, Page *page);
-  size_t size();  // size in bytes after serialization
-  size_t count();
-  size_t free_count();
-  size_t pending_count();
+  size_t size() const;  // size in bytes after serialization
+  size_t count() const;
+  size_t free_count() const;
+  size_t pending_count() const;
   void copyall(std::vector<page_id> &dest);
   page_id allocate(size_t sz);
   void release(txn_id tid);
@@ -105,7 +105,7 @@ class Batch {
   // a function list
 };
 
-struct DB {
+class DB {
   static uint32_t pageSize;
   bool strictMode = false;
   bool noSync = false;
@@ -141,7 +141,9 @@ struct DB {
   bool readOnly = false;
   MemoryPool txnPool;
 
-  std::function<int(char *, size_t, off_t)> writeAt =
+  int munmap_db_file();
+ public:
+  const std::function<int(char *, size_t, off_t)> writeAt =
       [this](char *buf, size_t len, off_t offset) {
         auto ret = ::pwrite(fd, buf, len, offset);
         if (ret == -1) {
@@ -149,9 +151,15 @@ struct DB {
         }
         return ret;
       };
-
- public:
+  bool isNoSync() const { return noSync; }
+  void writerEnter() { readWriteAccessMutex.lock(); }
+  void writerLeave() { readWriteAccessMutex.unlock(); }
+  void setRWTX(Txn *txn) { rwtx = txn; }
+  int getFd() const { return this->fd; }
+  size_t freeListSerialSize() const { return freeList.size(); }
   void resetData();
+  void resetData(void *data_p, void *dataref_p, size_t datasz_p);
+  bool hasMappingData() const { return dataref != nullptr; }
   Page *getPage(page_id pageId);
   FreeList &getFreeLIst();
   static uint64_t getPageSize();

@@ -100,13 +100,13 @@ int Txn::commit() {
   metaData->rootBucketHeader.rootPageId = rootBucket.getRootPage();
   auto pgid = metaData->totalPageNumber;
 
-  db->freeList.free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
-  auto page = allocate((db->freeList.size() / db->getPageSize()) + 1);
+  free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
+  auto page = allocate((db->freeListSerialSize() / db->getPageSize()) + 1);
   if (page == nullptr) {
     rollback();
     return -1;
   }
-  if (db->freeList.write(page)) {
+  if (db->getFreeLIst().write(page)) {
     rollback();
     return -1;
   }
@@ -143,8 +143,8 @@ void Txn::rollback() {
     return;
   }
   if (isWritable()) {
-    db->freeList.rollback(metaData->txnId);
-    db->freeList.reload(db->getPage(metaData->freeListPageNumber));
+    db->getFreeLIst().rollback(metaData->txnId);
+    db->getFreeLIst().reload(db->getPage(metaData->freeListPageNumber));
   }
   closeTxn();
 }
@@ -155,8 +155,8 @@ void Txn::closeTxn() {
   }
 
   if (writable) {
-    db->rwtx = nullptr;
-    db->readWriteAccessMutex.unlock();
+    db->setRWTX(nullptr);
+    db->writerLeave();
   } else {
     db->removeTxn(this);
   }
@@ -178,8 +178,8 @@ int Txn::writeMeta() {
     return -1;
   }
 
-  if (!db->noSync) {
-    if (file_data_sync(db->fd)) {
+  if (!db->isNoSync()) {
+    if (file_data_sync(db->getFd())) {
       return -1;
     }
   }
@@ -202,8 +202,8 @@ int Txn::write() {
     }
   }
 
-  if (!db->noSync) {
-    if (file_data_sync(db->fd)) {
+  if (!db->isNoSync()) {
+    if (file_data_sync(db->getFd())) {
       return -1;
     }
   }
@@ -213,14 +213,14 @@ int Txn::write() {
 
 bool Txn::freelistcheck() {
   std::map<page_id, bool> hash;
-  for (auto item : db->freeList.pageIds) {
+  for (auto item : db->getFreeLIst().pageIds) {
     if (hash.find(item) != hash.end()) {
       return false;
     }
     hash[item] = true;
   }
 
-  for (auto &p : db->freeList.pending) {
+  for (auto &p : db->getFreeLIst().pending) {
     for (auto item : p.second) {
       if (hash.find(item) != hash.end()) {
         return false;
@@ -299,5 +299,5 @@ bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
 }
 
 txn_id Txn::txnId() const { return metaData->txnId; }
-void Txn::free(txn_id tid, Page *page) { db->freeList.free(tid, page); }
+void Txn::free(txn_id tid, Page *page) { db->getFreeLIst().free(tid, page); }
 }  // namespace boltDB_CPP
