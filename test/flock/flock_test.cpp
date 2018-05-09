@@ -42,6 +42,9 @@ TEST(flockteset, flockWLockOn2RLocksGranted) {
   th.join();
   EXPECT_EQ(granted.load(), true);
   file_Unlock(fd3);
+  close(fd1);
+  close(fd2);
+  close(fd3);
   std::cout << "test ends" << std::endl;
 }
 
@@ -79,6 +82,7 @@ TEST(flockteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
   std::cout << "2 read locks closed" << std::endl;
   th.join();
   file_Unlock(fd3);
+  close(fd3);
   std::cout << "test ends" << std::endl;
 }
 
@@ -97,6 +101,7 @@ TEST(flockteset, flockLockTypeChange) {
   EXPECT_EQ(file_Rlock(fd1), 0);
   std::cout << "grabbed 1 read lock" << std::endl;
   file_Unlock(fd1);
+  close(fd1);
   std::cout << "test ends" << std::endl;
 }
 
@@ -150,6 +155,8 @@ TEST(flockteset, flockAcquireWLockOn1WLockBeingGranted) {
   EXPECT_EQ(file_WlockBlocking(fd2), 0);
   std::cout << "grabbed 1 write lock" << std::endl;
   th.join();
+  close(fd2);
+  close(fd1);
   std::cout << "test ends" << std::endl;
 }
 
@@ -169,6 +176,7 @@ TEST(flockteset, flockTwoWLocks) {
   EXPECT_EQ(file_WlockBlocking(fd1), 0);
   std::cout << "grabbed 1 write lock" << std::endl;
   file_Unlock(fd1);
+  close(fd1);
   std::cout << "test ends" << std::endl;
 }
 }
