@@ -17,7 +17,7 @@
 #include "util.h"
 namespace boltDB_CPP {
 uint32_t DB::pageSize = DEFAULTPAGESIZE;
-Page *boltDB_CPP::DB::getPage(page_id pageId) {
+Page *boltDB_CPP::DB::pagePointer(page_id pageId) {
   assert(pageSize != 0);
   uint64_t pos = pageId * pageSize;
   return reinterpret_cast<Page *>(&data[pos]);
@@ -80,16 +80,14 @@ int DB::grow(size_t sz) {
   return 0;
 }
 int DB::init() {
-  // hard code page size
-  this->pageSize = DEFAULTPAGESIZE;
-
+  //2 meta pages, 1 freelist page, 1 leaf node page
   std::vector<char> buf(pageSize * 4);
   for (page_id i = 0; i < 2; i++) {
     auto p = pageInBuffer(buf.data(), buf.size(), i);
     p->pageId = i;
-    p->flag = static_cast<uint16_t>(PageFlag::metaPageFlag);
+    p->flag = pageFlagValue(PageFlag::metaPageFlag);
 
-    auto m = p->getMeta();
+    auto m = p->metaPointer();
     m->magic = MAGIC;
     m->version = VERSION;
     m->pageSize = pageSize;
@@ -102,16 +100,18 @@ int DB::init() {
   }
 
   {
+    //free list page
     auto p = pageInBuffer(buf.data(), buf.size(), 2);
     p->pageId = 2;
-    p->flag |= static_cast<uint16_t>(PageFlag::freelistPageFlag);
+    p->flag |= pageFlagValue(PageFlag::freelistPageFlag);
     p->count = 0;
   }
 
   {
+    //leaf node page
     auto p = pageInBuffer(buf.data(), buf.size(), 3);
     p->pageId = 3;
-    p->flag |= static_cast<uint16_t>(PageFlag::leafPageFlag);
+    p->flag |= pageFlagValue(PageFlag::leafPageFlag);
     p->count = 0;
   }
 
@@ -123,6 +123,7 @@ int DB::init() {
     return -1;
   }
 
+  fileSize = 4 * pageSize;
   return 0;
 }
 Page *DB::pageInBuffer(char *ptr, size_t length, page_id pageId) {
@@ -131,7 +132,7 @@ Page *DB::pageInBuffer(char *ptr, size_t length, page_id pageId) {
 }
 
 struct OnClose {
-  OnClose(std::function<void()> function) : fn(std::move(function)) {}
+  explicit OnClose(std::function<void()> &&function) : fn(std::move(function)) {}
   std::function<void()> fn;
   ~OnClose() {
     if (fn) {
@@ -141,7 +142,6 @@ struct OnClose {
 };
 DB *DB::openDB(const std::string &path_p, uint16_t mode,
                const Options &options) {
-  OnClose{std::bind(&DB::closeDB, this)};
   opened = true;
 
   noGrowSync = options.noGrowSync;
@@ -174,57 +174,55 @@ DB *DB::openDB(const std::string &path_p, uint16_t mode,
       auto ret = file_Rlock(fd);
       if (ret == -1) {
         perror("flock read");
-        //        closeDB();
+        do_closeDB();
         return nullptr;
       }
     } else {
       auto ret = file_Wlock(fd);
       if (ret == -1) {
         perror("flock write");
-        //        closeDB();
+        do_closeDB();
         return nullptr;
       }
     }
   }
 
-  struct stat stat1;
-  {
-    {
-      auto ret = fstat(fd, &stat1);
-      if (ret == -1) {
-        perror("stat");
-        //      closeDB();
-        return nullptr;
-      }
-    }
+  fileSize = file_size(fd);
+  if (fileSize == -1) {
+    do_closeDB();
+    return nullptr;
+  }
 
-    if (stat1.st_size == 0) {
-      if (init()) {
-        return nullptr;
-      }
+  if (fileSize == 0) {
+    if (init()) {
+      do_closeDB();
+      return nullptr;
+    }
+  } else {
+    //it is not necessary to read out pagesize, since this implementation use fixed page size
+    // currently not dealing with corrupted db
+    std::vector<char> localBuff(0x1000);  // 4k page
+    auto ret = ::pread(fd, localBuff.data(), localBuff.size(), 0);
+    if (ret == -1) {
+      do_closeDB();
+      return nullptr;
+    }
+    auto m = pageInBuffer(localBuff.data(), localBuff.size(), 0)->metaPointer();
+    if (!m->validate()) {
+      pageSize = DEFAULTPAGESIZE;
     } else {
-      // currently not dealing with corrupted db
-      std::vector<char> localBuff(0x1000);  // 4k page
-      auto ret = ::pread(fd, localBuff.data(), localBuff.size(), 0);
-      if (ret == -1) {
-        return nullptr;
-      }
-      auto m = pageInBuffer(localBuff.data(), localBuff.size(), 0)->getMeta();
-      if (!m->validate()) {
-        pageSize = DEFAULTPAGESIZE;
-      } else {
-        pageSize = m->pageSize;
-      }
+      pageSize = m->pageSize;
     }
   }
 
   // init meta
-  if (initMeta(stat1.st_size, options.initalMmapSize)) {
+  if (initMeta(options.initalMmapSize)) {
+    do_closeDB();
     return nullptr;
   }
 
   // init freelist
-  freeList.read(getPage(meta()->freeListPageNumber));
+  freeList.read(pagePointer(meta()->freeListPageNumber));
   return this;
 }
 void DB::closeDB() {
@@ -245,18 +243,22 @@ void DB::do_closeDB() {
   munmap_db_file();
 
   if (fd) {
-    if (!readOnly) {
-      file_Unlock(fd);
-    }
+    /**
+     * do not need to unlock SH/EX lock
+     * it will be released implicitly when fd is closed
+     */
+//    if (!readOnly) {
+//      file_Unlock(fd);
+//    }
     close(fd);
     fd = -1;
   }
   path.clear();
 }
 
-int DB::initMeta(off_t fileSize, off_t minMmapSize) {
+int DB::initMeta(off_t minMmapSize) {
   mmapLock.writeLock();
-  OnClose{std::bind(&RWLock::writeUnlock, &mmapLock)};
+  OnClose onClose(std::bind(&RWLock::writeUnlock, &mmapLock));
 
   if (fileSize < pageSize * 2) {
     // there should be at least 2 page of meta page
@@ -271,8 +273,7 @@ int DB::initMeta(off_t fileSize, off_t minMmapSize) {
   // dereference before unmapping. deference?
   // dereference means make a copy
   // clone data which nodes are pointing to
-  // or on unmapping, these data points in nodes will be pointing to undefined
-  // value
+  // if not doing this on unmapping, nodes these data points to will be undefined value
   if (rwtx) {
     rwtx->rootBucket.dereference();
   }
@@ -282,12 +283,13 @@ int DB::initMeta(off_t fileSize, off_t minMmapSize) {
     return -1;
   }
 
-  if (mmap_db_file(this, targetSize)) {
+  assert(targetSize > 0);
+  if (mmap_db_file(this, static_cast<size_t>(targetSize))) {
     return -1;
   }
 
-  meta0 = getPage(0)->getMeta();
-  meta1 = getPage(1)->getMeta();
+  meta0 = pagePointer(0)->metaPointer();
+  meta1 = pagePointer(1)->metaPointer();
 
   // if one fails validation, it can be recovered from the other one.
   // fail when both meta pages are broken
@@ -416,7 +418,7 @@ Page *DB::allocate(size_t count, Txn *txn) {
         return nullptr;
       }
     }
-    if (initMeta(stat1.st_size, minLen)) {
+    if (initMeta(minLen)) {
       return nullptr;
     }
   }

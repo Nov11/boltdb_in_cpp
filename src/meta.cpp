@@ -32,6 +32,6 @@ void Meta::write(Page *page) {
 
   checkSum = 0;
 
-  std::memcpy(page->getMeta(), this, sizeof(Meta));
+  std::memcpy(page->metaPointer(), this, sizeof(Meta));
 }
 }  // namespace boltDB_CPP

@@ -59,5 +59,7 @@ void mergePageIds(std::vector<boltDB_CPP::page_id> &dest,
 std::vector<boltDB_CPP::page_id> merge(
     const std::vector<boltDB_CPP::page_id> &a,
     const std::vector<boltDB_CPP::page_id> &b);
+
+off_t file_size(int fd);
 }  // namespace boltDB_CPP
 #endif  // BOLTDB_IN_CPP_UTILITY_H

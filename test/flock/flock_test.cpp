@@ -8,7 +8,7 @@
 #include <thread>
 #include <atomic>
 namespace boltDB_CPP {
-TEST(dbteset, flockWLockOn2RLocksGranted) {
+TEST(flockteset, flockWLockOn2RLocksGranted) {
   std::cout << std::endl;
 /**
  * flock works on open file descriptions
@@ -45,7 +45,7 @@ TEST(dbteset, flockWLockOn2RLocksGranted) {
   std::cout << "test ends" << std::endl;
 }
 
-TEST(dbteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
+TEST(flockteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
   std::cout << std::endl;
 /**
  * flock works on open file descriptions
@@ -73,7 +73,7 @@ TEST(dbteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
     std::cout << "grabbed write lock" << std::endl;
   });
   //release 2 read locks
-  sleep(2);
+  sleep(1);
   close(fd1);
   close(fd2);
   std::cout << "2 read locks closed" << std::endl;
@@ -82,7 +82,7 @@ TEST(dbteset, flockWLockOn2RLocksGranted_closeButNotFunlock) {
   std::cout << "test ends" << std::endl;
 }
 
-TEST(dbteset, flockLockTypeChange) {
+TEST(flockteset, flockLockTypeChange) {
   std::cout << std::endl;
 /**
  * flock calls on an already locked file will do lock type conversion. share <-> exclusive
@@ -126,29 +126,34 @@ TEST(dbteset, flockLockTypeChange) {
 //}
 
 //this will block
-//TEST(dbteset, flockAcquireWLockOn1WLockBeingGranted) {
-//  std::cout << std::endl;
-//  /**
-//   * flock works on open file descriptions
-//   * see what happens if acquiring a write lock when there is a write lock granted on a different file description
-//   * of the same underlying file.
-//   *
-//   * write lock can not be granted
-//   */
-//  auto fd1 = ::open("dbtest", O_CREAT | O_RDWR, 0666);
-//  assert(fd1 != -1);
-//  auto fd2 = ::open("dbtest", O_CREAT | O_RDWR, 0666);
-//  assert(fd1 != -1);
-//
-//  //2 read lock
-//  EXPECT_EQ(file_WlockBlocking(fd1), 0);
-//  std::cout << "grabbed 1 write lock" << std::endl;
-//  EXPECT_EQ(file_WlockBlocking(fd2), 0);
-//  std::cout << "grabbed 1 write lock" << std::endl;
-//  std::cout << "test ends" << std::endl;
-//}
+TEST(flockteset, flockAcquireWLockOn1WLockBeingGranted) {
+  std::cout << std::endl;
+  /**
+   * flock works on open file descriptions
+   * see what happens if acquiring a write lock when there is a write lock granted on a different file description
+   * of the same underlying file.
+   *
+   * write lock can not be granted
+   */
+  auto fd1 = ::open("dbtest", O_CREAT | O_RDWR, 0666);
+  assert(fd1 != -1);
+  auto fd2 = ::open("dbtest", O_CREAT | O_RDWR, 0666);
+  assert(fd1 != -1);
 
-TEST(dbteset, flockTwoWLocks) {
+  //2 write lock
+  EXPECT_EQ(file_WlockBlocking(fd1), 0);
+  std::cout << "grabbed 1 write lock" << std::endl;
+  std::thread th([fd1](){
+    sleep(1);
+    close(fd1);
+  });
+  EXPECT_EQ(file_WlockBlocking(fd2), 0);
+  std::cout << "grabbed 1 write lock" << std::endl;
+  th.join();
+  std::cout << "test ends" << std::endl;
+}
+
+TEST(flockteset, flockTwoWLocks) {
   std::cout << std::endl;
 /**
  * open one fd

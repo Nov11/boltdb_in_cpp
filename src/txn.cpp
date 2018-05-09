@@ -17,7 +17,7 @@ Page *boltDB_CPP::Txn::getPage(page_id pageId) {
       return iter->second;
     }
   }
-  return db->getPage(pageId);
+  return db->pagePointer(pageId);
 }
 
 Page *Txn::allocate(size_t count) {
@@ -100,7 +100,7 @@ int Txn::commit() {
   metaData->rootBucketHeader.rootPageId = rootBucket.getRootPage();
   auto pgid = metaData->totalPageNumber;
 
-  free(metaData->txnId, db->getPage(metaData->freeListPageNumber));
+  free(metaData->txnId, db->pagePointer(metaData->freeListPageNumber));
   auto page = allocate((db->freeListSerialSize() / db->getPageSize()) + 1);
   if (page == nullptr) {
     rollback();
@@ -144,7 +144,7 @@ void Txn::rollback() {
   }
   if (isWritable()) {
     db->getFreeLIst().rollback(metaData->txnId);
-    db->getFreeLIst().reload(db->getPage(metaData->freeListPageNumber));
+    db->getFreeLIst().reload(db->pagePointer(metaData->freeListPageNumber));
   }
   closeTxn();
 }

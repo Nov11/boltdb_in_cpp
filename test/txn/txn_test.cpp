@@ -29,5 +29,6 @@ class TmpFile : testing::Test {
 };
 TEST(TypeTests, helloworldtest) {
   std::cout << "hello world" << std::endl;
+
 }
 }

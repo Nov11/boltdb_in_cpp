@@ -92,7 +92,7 @@ struct Stat {
 struct Options {
   uint32_t timeOut = 0;  // currently not supporting this parameter
   bool noGrowSync = false;
-  bool readOnly = true;
+  bool readOnly = false;
   uint32_t mmapFlag = 0;
   size_t initalMmapSize = 0;
 };
@@ -114,7 +114,7 @@ class DB {
   uint32_t maxBatchSize = 0;
   uint32_t maxBatchDelayMillionSeconds = 0;
   uint32_t allocSize = 0;
-  uint64_t fileSize = 0;
+  off_t fileSize = 0;
   std::string path;
   int fd = -1;
   void *dataref = nullptr;   // readonly . this is mmap data
@@ -160,7 +160,7 @@ class DB {
   void resetData();
   void resetData(void *data_p, void *dataref_p, size_t datasz_p);
   bool hasMappingData() const { return dataref != nullptr; }
-  Page *getPage(page_id pageId);
+  Page *pagePointer(page_id pageId);
   FreeList &getFreeLIst();
   static uint64_t getPageSize();
   Page *allocate(size_t count, Txn *txn);
@@ -173,7 +173,7 @@ class DB {
              const Options &options = DEFAULTOPTION);
   void closeDB();
   void do_closeDB();
-  int initMeta(off_t fileSize, off_t minMmapSize);
+  int initMeta(off_t minMmapSize);
   int mmapSize(off_t &targetSize);  // targetSize is a hint. calculate the mmap
   // size based on input param
   int update(std::function<int(Txn *tx)> fn);
@@ -235,7 +235,7 @@ struct Page {
   void setFlag(uint16_t flags) { Page::flag = flags; }
   uint16_t getCount() const { return count; }
 
-  Meta *getMeta() { return reinterpret_cast<Meta *>(&ptr); }
+  Meta *metaPointer() { return reinterpret_cast<Meta *>(&ptr); }
 };
 
 // transverse all kv pairs in a bucket in sorted order
@@ -247,12 +247,15 @@ enum class PageFlag : uint16_t {
   metaPageFlag = 0x04,
   freelistPageFlag = 0x10,
 };
+static inline uint16_t pageFlagValue(PageFlag pf) {
+  return static_cast<uint16_t >(pf);
+}
 
-static bool isSet(uint32_t flag, PageFlag flag1) {
+static inline bool isSet(uint32_t flag, PageFlag flag1) {
   return static_cast<bool>(flag & static_cast<uint32_t>(flag1));
 }
 
-static bool isBucketLeaf(uint32_t flag) {
+static inline bool isBucketLeaf(uint32_t flag) {
   return isSet(flag, PageFlag::bucketLeafFlag);
 }
 

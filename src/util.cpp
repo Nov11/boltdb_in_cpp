@@ -8,6 +8,7 @@
 #include <zconf.h>
 #include <cerrno>
 #include <cstdio>
+#include <sys/stat.h>
 #include "db.h"
 
 namespace boltDB_CPP {
@@ -96,5 +97,15 @@ std::vector<boltDB_CPP::page_id> merge(
   std::vector<boltDB_CPP::page_id> result;
   mergePageIds(result, a, b);
   return result;
+}
+
+off_t file_size(int fd) {
+  struct stat stat1;
+  auto ret = fstat(fd, &stat1);
+  if (ret == -1) {
+    perror("stat");
+    return 0;
+  }
+  return stat1.st_size;
 }
 }  // namespace boltDB_CPP
