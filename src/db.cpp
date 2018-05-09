@@ -115,11 +115,11 @@ int DB::init() {
     p->count = 0;
   }
 
-  if (writeAt(buf.data(), buf.size(), 0)) {
+  if (buf.size() != writeAt(buf.data(), buf.size(), 0)) {
     return -1;
   }
 
-  if (file_data_sync(fd)) {
+  if (file_data_sync(fd) != 0) {
     return -1;
   }
 
@@ -452,7 +452,7 @@ void DB::resetData() {
   dataref = nullptr;
 }
 void DB::resetData(void *data_p, void *dataref_p, size_t datasz_p) {
-  data = reinterpret_cast<decltype(data)>(data_p);
+  data = reinterpret_cast<char *>(data_p);
   dataref = dataref_p;
   dataSize = datasz_p;
 }

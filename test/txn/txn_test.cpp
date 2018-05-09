@@ -3,14 +3,9 @@
 //
 #include <memory>
 #include <chrono>
+#include <test_util.h>
 #include "db.h"
 #include "gtest/gtest.h"
-
-std::string newFileName() {
-  auto ret = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch());
-  int64_t currentTime = ret.count();
-  return std::to_string(currentTime);
-}
 
 namespace boltDB_CPP {
 class TmpFile : testing::Test {

@@ -10,6 +10,7 @@ include(CTest)
 find_package(Threads REQUIRED)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/test/include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party)
 include_directories(BEFORE src) # This is needed for gtest.
 file(GLOB SRC_BOLT ${PROJECT_SOURCE_DIR}/src/*.cpp)

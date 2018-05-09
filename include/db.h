@@ -118,7 +118,7 @@ class DB {
   std::string path;
   int fd = -1;
   void *dataref = nullptr;   // readonly . this is mmap data
-  char (*data)[MAXMAPSIZE];  // data is a pointer to block of memory if sizeof
+  char *data = nullptr;  // data is a pointer to block of memory if sizeof
   // MAXMAPSIZE
   uint64_t dataSize = 0;
   Meta *meta0 = nullptr;

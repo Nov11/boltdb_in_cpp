@@ -6,8 +6,13 @@
 #include <util.h>
 #include <thread>
 #include <fcntl.h>
+#include <test_util.h>
 namespace boltDB_CPP {
-TEST(dbtest, emptytest) {
-  std::cout << "emptytest" << std::endl;
+TEST(dbtest, opentest) {
+  std::unique_ptr<DB> ptr(new DB);
+  auto ret = ptr->openDB(newFileName(), S_IRWXU);
+  EXPECT_EQ(ret, ptr.get());
+  ptr->closeDB();
 }
+
 }

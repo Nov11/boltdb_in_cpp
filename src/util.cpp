@@ -46,6 +46,7 @@ int mmap_db_file(DB *database, size_t sz) {
 //  database->dataref = (ret);
 //  database->dataSize = (sz);
   database->resetData(ret, ret, sz);
+  return 0;
 }
 
 //// un-map database file from memory
