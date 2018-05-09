@@ -96,7 +96,7 @@ int DB::init() {
     m->totalPageNumber = 4;
     m->txnId = i;
 
-    // todo: add check sum
+    m->checkSum = m->sum64();
   }
 
   {

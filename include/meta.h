@@ -26,7 +26,7 @@ struct Meta {
     return ret;
   }
   bool validate();
-  //  uint64_t sum64();
+  uint64_t sum64();
 
   void write(Page *page);
 };

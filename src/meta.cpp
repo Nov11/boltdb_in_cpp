@@ -1,7 +1,10 @@
 //
 // Created by c6s on 18-5-4.
 //
-
+extern "C" {
+#include "fnv/fnv.h"
+}
+#include <cstring>
 #include "meta.h"
 #include "db.h"
 namespace boltDB_CPP {
@@ -14,10 +17,7 @@ bool Meta::validate() {
     return false;
   }
 
-  //  if (checkSum != 0 && checkSum != sum64()) {
-  //    return false;
-  //  }
-  return true;
+  return !(checkSum != 0 && checkSum != sum64());
 }
 void Meta::write(Page *page) {
   if (rootBucketHeader.rootPageId >= totalPageNumber) {
@@ -33,5 +33,10 @@ void Meta::write(Page *page) {
   checkSum = 0;
 
   std::memcpy(page->metaPointer(), this, sizeof(Meta));
+}
+uint64_t Meta::sum64() {
+  uint64_t result = 0;
+  result = ::fnv_64a_buf(this, offsetof(Meta, checkSum), FNV1A_64_INIT);
+  return result;
 }
 }  // namespace boltDB_CPP
