@@ -61,7 +61,7 @@
     * (release)when committing a txn(it must be a read write txn)
 * mmaplock
     * (acquire)1.remap db file(full lock) 2. start a ro txn(read lock)
-    * (release)1.remapped db file 2. started the ro txn 3. remove a txn
+    * (release)1.remapped db file 2. remove a txn
 * metalock(this is actually db data structure mutex)
     * (acquire)1.begin a new rw/ro txn 2.remove a txn
     * (release)1.txn being created 2. removed a txn

@@ -28,4 +28,5 @@ TEST(dbtest, open_invalid_db_file) {
   EXPECT_EQ(ret, nullptr);
   ptr->closeDB();
 }
+//
 }
