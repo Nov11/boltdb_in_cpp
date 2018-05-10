@@ -79,10 +79,13 @@ class Bucket {
   int setSequence(uint64_t v);
   int nextSequence(uint64_t &v);
   size_t maxInlineBucketSize();
-  bool inlineable();
+  bool isInlineable();
   int spill();  // write dirty pages
   void reset();
   static Bucket *newBucket(Txn *tx);
+  bool isInlineBucket() const {
+    return bucketHeader.rootPageId == 0;
+  }
 };
 
 const uint32_t BUCKETHEADERSIZE = sizeof(boltDB_CPP::BucketHeader);

@@ -28,5 +28,20 @@ TEST(dbtest, open_invalid_db_file) {
   EXPECT_EQ(ret, nullptr);
   ptr->closeDB();
 }
-//
+//re-open a db
+TEST(dbtest, dbtest_reopendb_Test){
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  db1->openDB(name, S_IRWXU);
+//  db1->view([](Txn* txn){
+////    return txn->freelistcheck() ? ;
+//  });
+  db1->closeDB();
+  db1.reset();
+
+  std::unique_ptr<DB> db2(new DB);
+  db2->openDB(name, S_IRWXU);
+  db2->closeDB();
+}
+
 }

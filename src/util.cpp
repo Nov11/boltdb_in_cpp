@@ -5,7 +5,6 @@
 #include "util.h"
 #include <sys/file.h>
 #include <sys/mman.h>
-#include <zconf.h>
 #include <cerrno>
 #include <cstdio>
 #include <sys/stat.h>

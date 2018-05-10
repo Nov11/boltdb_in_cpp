@@ -212,47 +212,47 @@ int Txn::write() {
 }
 
 bool Txn::freelistcheck() {
-  std::map<page_id, bool> hash;
+  std::map<page_id, bool> freePageIds;
   for (auto item : db->getFreeLIst().pageIds) {
-    if (hash.find(item) != hash.end()) {
+    if (freePageIds.find(item) != freePageIds.end()) {
       return false;
     }
-    hash[item] = true;
+    freePageIds[item] = true;
   }
 
   for (auto &p : db->getFreeLIst().pending) {
     for (auto item : p.second) {
-      if (hash.find(item) != hash.end()) {
+      if (freePageIds.find(item) != freePageIds.end()) {
         return false;
       }
-      hash[item] = true;
+      freePageIds[item] = true;
     }
   }
 
-  std::map<page_id, Page *> pmap;
-  pmap[0] = getPage(0);
-  pmap[1] = getPage(1);
+  std::map<page_id, Page *> occupiedPageIds;
+  occupiedPageIds[0] = getPage(0);
+  occupiedPageIds[1] = getPage(1);
   for (size_t i = 0; i <= getPage(metaData->freeListPageNumber)->overflow;
        i++) {
-    pmap[metaData->freeListPageNumber + i] =
+    occupiedPageIds[metaData->freeListPageNumber + i] =
         getPage(metaData->freeListPageNumber);
   }
 
-  if (checkBucket(rootBucket, pmap, hash)) {
+  if (checkBucket(rootBucket, occupiedPageIds, freePageIds)) {
     return false;
   }
 
   for (size_t i = 0; i < metaData->totalPageNumber; i++) {
-    if ((pmap.find(i) == pmap.end()) && (hash.find(i) == hash.end())) {
+    if ((occupiedPageIds.find(i) == occupiedPageIds.end()) && (freePageIds.find(i) == freePageIds.end())) {
       return false;
     }
   }
-  return false;
+  return true;
 }
 
 bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
                       std::map<page_id, bool> &freed) {
-  if (bucket.bucketHeader.rootPageId == 0) {
+  if (bucket.isInlineBucket() == 0) {
     return true;
   }
   bool ret = true;

@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <zconf.h>
 #include <algorithm>
 #include <cstring>
 #include <utility>

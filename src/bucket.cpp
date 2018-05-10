@@ -415,7 +415,7 @@ size_t Bucket::maxInlineBucketSize() {
   return boltDB_CPP::DB::getPageSize() / 4;
 }
 
-bool Bucket::inlineable() {
+bool Bucket::isInlineable() {
   auto r = rootNode;
   if (r == nullptr || !r->isLeafNode()) {
     return false;
@@ -431,7 +431,7 @@ int Bucket::spill() {
 
     Item newValue;
     size_t len = 0;
-    if (child->inlineable()) {
+    if (child->isInlineable()) {
       child->free();
       newValue = child->write();
     } else {
