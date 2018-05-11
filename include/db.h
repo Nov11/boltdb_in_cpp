@@ -17,6 +17,7 @@
 #include "bucket_header.h"
 #include "rwlock.h"
 #include "types.h"
+#include "txn.h"
 
 namespace boltDB_CPP {
 
@@ -180,7 +181,8 @@ class DB {
   int view(std::function<int(Txn *tx)> fn);
   Txn *beginRWTx();
   Txn *beginTx();
-  void closeTx(Txn* txn);
+  void closeTx(Txn *txn);
+  int mmap_db_file(DB *database, size_t sz);
 };
 
 struct BranchPageElement {

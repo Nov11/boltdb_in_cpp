@@ -6,6 +6,7 @@ extern "C" {
 }
 #include <cstring>
 #include "meta.h"
+#include "memory_pool.h"
 #include "db.h"
 namespace boltDB_CPP {
 bool Meta::validate() {
@@ -38,5 +39,14 @@ uint64_t Meta::sum64() {
   uint64_t result = 0;
   result = ::fnv_64a_buf(this, offsetof(Meta, checkSum), FNV1A_64_INIT);
   return result;
+}
+Meta *Meta::copyCreateFrom(Meta *other, MemoryPool &pool) {
+  if (other == nullptr) {
+    return other;
+  }
+  auto ret = pool.allocate<Meta>();
+  // member wise copy
+  *ret = *other;
+  return ret;
 }
 }  // namespace boltDB_CPP

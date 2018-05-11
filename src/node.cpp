@@ -502,5 +502,26 @@ size_t Node::search(const Item &key, bool &found) {
                            found);
   return ret;
 }
+bool Node::isinlineable(size_t maxInlineBucketSize) const {
+  size_t s = PAGEHEADERSIZE;
+  for (auto item : inodeList) {
+    s += LEAFPAGEELEMENTSIZE + item.key.length + item.value.length;
+
+    if (isBucketLeaf(item.flag)) {
+      return false;
+    }
+    if (s > maxInlineBucketSize) {
+      return false;
+    }
+  }
+  return true;
+}
+std::vector<page_id> Node::branchPageIds() {
+  std::vector<page_id> result;
+  for (auto &item : inodeList) {
+    result.push_back(item.pageId);
+  }
+  return result;
+}
 
 }  // namespace boltDB_CPP

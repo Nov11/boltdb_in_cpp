@@ -60,29 +60,10 @@ class Node {
   page_id getPageId() const { return pageId; }
   Inode getInode(size_t idx) { return inodeList[idx]; }
   bool isLeafNode() const { return isLeaf; }
-  std::vector<page_id> branchPageIds() {
-    std::vector<page_id> result;
-    for (auto &item : inodeList) {
-      result.push_back(item.pageId);
-    }
-    return result;
-  }
+  std::vector<page_id> branchPageIds();
 
   size_t search(const Item &key, bool &found);
-  bool isinlineable(size_t maxInlineBucketSize) const {
-    size_t s = PAGEHEADERSIZE;
-    for (auto item : inodeList) {
-      s += LEAFPAGEELEMENTSIZE + item.key.length + item.value.length;
-
-      if (isBucketLeaf(item.flag)) {
-        return false;
-      }
-      if (s > maxInlineBucketSize) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool isinlineable(size_t maxInlineBucketSize) const;
 
   void read(Page *page);
   Node *childAt(uint64_t index);

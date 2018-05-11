@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <test_util.h>
 #include <txn.h>
+#include "db.h"
 namespace boltDB_CPP {
 //open an empty file as db
 TEST(dbtest, opentest) {

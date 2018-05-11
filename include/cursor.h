@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <deque>
 #include <vector>
-#include "db.h"
 #include "types.h"
 namespace boltDB_CPP {
 class Page;

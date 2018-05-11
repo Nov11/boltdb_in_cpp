@@ -486,6 +486,25 @@ void DB::closeTx(Txn *txn) {
     removeTxn(txn);
   }
 }
+int DB::mmap_db_file(DB *database, size_t sz) {
+  void *ret = ::mmap(nullptr, sz, PROT_READ, MAP_SHARED, database->getFd(), 0);
+  if (ret == MAP_FAILED) {
+    perror("mmap");
+    return -1;
+  }
+
+  int retAdvise = ::madvise(ret, sz, MADV_RANDOM);
+  if (retAdvise == -1) {
+    perror("madvise");
+    return -1;
+  }
+
+//  database->data = reinterpret_cast<decltype(database->data)>(ret);
+//  database->dataref = (ret);
+//  database->dataSize = (sz);
+  database->resetData(ret, ret, sz);
+  return 0;
+}
 
 void FreeList::free(txn_id tid, Page *page) {
   // meta page will never be freed

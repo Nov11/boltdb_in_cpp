@@ -7,9 +7,6 @@
 
 #include <unordered_map>
 #include "bucket_header.h"
-#include "db.h"
-#include "meta.h"
-#include "types.h"
 
 namespace boltDB_CPP {
 const uint32_t MAXKEYSIZE = 32768;
