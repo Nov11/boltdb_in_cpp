@@ -78,7 +78,7 @@ class Txn {
   void OnCommit(std::function<void()> fn);
   int commit();
   void rollback();
-  void closeTxn();
+//  void closeTxn();
   int writeMeta();
   int write();
   int isFreelistCheckOK();

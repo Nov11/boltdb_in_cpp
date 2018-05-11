@@ -45,7 +45,7 @@ TEST(dbtest, dbtest_reopendb_Test) {
 
   std::unique_ptr<DB> db2(new DB);
   db2->openDB(name, S_IRWXU);
-  db1->view([&ret](Txn *txn) {
+  db2->view([&ret](Txn *txn) {
     ret = txn->isFreelistCheckOK();
     return ret;
   });

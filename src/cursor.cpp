@@ -334,10 +334,7 @@ void Cursor::last(Item &key, Item &value) {
 void Cursor::first(Item &key, Item &value) {
   key.reset();
   value.reset();
-  {
-    decltype(stk) tmp;
-    swap(stk, tmp);
-  }
+  stk = std::stack<ElementRef>();
   Page *page = nullptr;
   Node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);

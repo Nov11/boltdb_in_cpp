@@ -316,6 +316,7 @@ int DB::mmapSize(off_t &targetSize) {
   exit(1);
   return 0;
 }
+
 int DB::update(std::function<int(Txn *tx)> fn) {
   auto tx = beginRWTx();
   if (tx == nullptr) {
@@ -329,7 +330,9 @@ int DB::update(std::function<int(Txn *tx)> fn) {
     return -1;
   }
 
-  return tx->commit();
+  auto result = tx->commit();
+  closeTx(tx);
+  return result;
 }
 
 // when commit a rw txn, readWriteAccessMutex must be released
@@ -435,10 +438,12 @@ int DB::view(std::function<int(Txn *tx)> fn) {
 
   if (ret != 0) {
     tx->rollback();
+    closeTx(tx);
     return -1;
   }
 
   tx->rollback();
+  closeTx(tx);
   return 0;
 }
 void DB::resetData() {
@@ -468,6 +473,18 @@ int DB::munmap_db_file() {
 
 void DB::resetRWTX() {
   rwtx = nullptr;
+}
+
+void DB::closeTx(Txn *txn) {
+  if (txn == nullptr) {
+    return;
+  }
+  if (rwtx && rwtx.get() == txn) {
+    resetRWTX();
+    writerLeave();
+  } else {
+    removeTxn(txn);
+  }
 }
 
 void FreeList::free(txn_id tid, Page *page) {

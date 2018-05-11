@@ -179,6 +179,7 @@ class DB {
   int view(std::function<int(Txn *tx)> fn);
   Txn *beginRWTx();
   Txn *beginTx();
+  void closeTx(Txn* txn);
 };
 
 struct BranchPageElement {

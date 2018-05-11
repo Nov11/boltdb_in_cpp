@@ -16,11 +16,11 @@ struct Meta {
   page_id totalPageNumber = 0;
   txn_id txnId = 0;
   uint64_t checkSum = 0;
-  static Meta *copyCreateFrom(Meta *other) {
+  static Meta *copyCreateFrom(Meta *other, MemoryPool &pool) {
     if (other == nullptr) {
       return other;
     }
-    auto ret = new Meta;
+    auto ret = pool.allocate<Meta>();
     // member wise copy
     *ret = *other;
     return ret;

@@ -48,7 +48,7 @@ void Txn::for_each_page(page_id pageId, int depth,
 
 void Txn::init(DB *db) {
   this->db = db;
-  metaData = Meta::copyCreateFrom(db->meta());
+  metaData = Meta::copyCreateFrom(db->meta(), pool);
   rootBucket.setTxn(this);
   rootBucket.setBucketHeader(metaData->rootBucketHeader);
   if (writable) {
@@ -129,11 +129,10 @@ int Txn::commit() {
     return -1;
   }
 
-  closeTxn();
-
   for (auto &item : commitHandlers) {
     item();
   }
+
   return 0;
 }
 
@@ -145,28 +144,9 @@ void Txn::rollback() {
     db->getFreeLIst().rollback(metaData->txnId);
     db->getFreeLIst().reload(db->pagePointer(metaData->freeListPageNumber));
   }
-  closeTxn();
 }
 
-void Txn::closeTxn() {
-  if (db == nullptr) {
-    return;
-  }
 
-  if (writable) {
-    db->resetRWTX();
-    db->writerLeave();
-  } else {
-    db->removeTxn(this);
-  }
-
-  db = nullptr;
-  metaData = nullptr;
-  dirtyPageTable.clear();
-  // need a new root bucket
-  rootBucket.reset();
-  rootBucket.setTxn(this);
-}
 
 int Txn::writeMeta() {
   std::vector<char> tmp(db->getPageSize());
