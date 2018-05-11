@@ -42,16 +42,14 @@ Meta *DB::meta() {
 }
 void DB::removeTxn(Txn *txn) {
   mmapLock.readUnlock();
-  metaLock.lock();
+  std::lock_guard<std::mutex> guard(metaLock);
 
   for (auto iter = txs.begin(); iter != txs.end(); iter++) {
-    if (*iter == txn) {
+    if (iter->get() == txn) {
       txs.erase(iter);
       break;
     }
   }
-
-  metaLock.unlock();
 }
 int DB::grow(size_t sz) {
   if (sz <= fileSize) {
@@ -353,21 +351,20 @@ Txn *DB::beginRWTx() {
     readWriteAccessMutex.unlock();
     return nullptr;
   }
-  auto txn = txnPool.allocate<Txn>();
-  txn->writable = true;
-  txn->init(this);
-  rwtx = txn;
+  rwtx.reset(new Txn);
+  rwtx->writable = true;
+  rwtx->init(this);
 
   // release pages of finished read only txns
   auto minId = UINT64_MAX;
-  for (auto item : txs) {
+  for (auto &item : txs) {
     minId = std::min(minId, item->metaData->txnId);
   }
 
   if (minId > 0) {
     freeList.release(minId - 1);
   }
-  return txn;
+  return rwtx.get();
 }
 
 // when commit/abort a read only txn, mmaplock must be released
@@ -379,11 +376,10 @@ Txn *DB::beginTx() {
     return nullptr;
   }
 
-  auto txn = txnPool.allocate<Txn>();
+  txs.emplace_back(new Txn);
+  auto &txn = txs.back();
   txn->init(this);
-  txs.push_back(txn);
-
-  return txn;
+  return txn.get();
 }
 
 Page *DB::allocate(size_t count, Txn *txn) {
@@ -468,6 +464,10 @@ int DB::munmap_db_file() {
 
   resetData();
   return 0;
+}
+
+void DB::resetRWTX() {
+  rwtx = nullptr;
 }
 
 void FreeList::free(txn_id tid, Page *page) {
@@ -681,9 +681,4 @@ void FreeList::reset() {
   pending.clear();
   cache.clear();
 }
-
-// uint64_t MetaData::sum64() {
-//
-//  return 0;
-//}
 }  // namespace boltDB_CPP

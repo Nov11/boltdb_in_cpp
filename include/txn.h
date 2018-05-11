@@ -81,9 +81,9 @@ class Txn {
   void closeTxn();
   int writeMeta();
   int write();
-  bool freelistcheck();
-  bool checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
-                   std::map<page_id, bool> &freed);
+  int isFreelistCheckOK();
+  bool isBucketsRemainConsistent(Bucket &bucket, std::map<page_id, Page *> &reachable,
+                                 std::map<page_id, bool> &freed);
 };
 
 }  // namespace boltDB_CPP

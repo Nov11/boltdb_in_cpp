@@ -31,7 +31,13 @@ size_t ElementRef::count() const {
 }
 
 void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
-  assert(!stk.empty());
+  if (stk.empty()) {
+    key.reset();
+    value.reset();
+    flag = 0;
+    return;
+  }
+
   auto ref = stk.top();
   if (ref.count() == 0 || ref.index >= ref.count()) {
     std::cerr << "get Key/value from empty bucket / index out of range"
@@ -62,7 +68,7 @@ void Cursor::search(const Item &key, page_id pageId) {
   bucket->getPageNode(pageId, node, page);
   if (page &&
       (page->getFlag() & (static_cast<uint16_t>(PageFlag::branchPageFlag) |
-                          static_cast<uint16_t>(PageFlag::leafPageFlag)))) {
+          static_cast<uint16_t>(PageFlag::leafPageFlag)))) {
     assert(false);
   }
   ElementRef ref{page, node};
@@ -170,7 +176,7 @@ void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
     while (!stk.empty()) {
       auto &ref = stk.top();
       // not the last element
-      if (ref.index < ref.count() - 1) {
+      if (ref.index + 1 < ref.count()) {
         ref.index++;
         break;
       }

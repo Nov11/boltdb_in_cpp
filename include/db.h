@@ -124,8 +124,8 @@ class DB {
   Meta *meta0 = nullptr;
   Meta *meta1 = nullptr;
   bool opened = false;
-  Txn *rwtx = nullptr;
-  std::vector<Txn *> txs;
+  std::unique_ptr<Txn> rwtx;
+  std::vector<std::unique_ptr<Txn>> txs;
   FreeList freeList;
   Stat stat;
 
@@ -139,7 +139,6 @@ class DB {
   RWLock statLock;
 
   bool readOnly = false;
-  MemoryPool txnPool;
 
   int munmap_db_file();
  public:
@@ -154,7 +153,7 @@ class DB {
   bool isNoSync() const { return noSync; }
   void writerEnter() { readWriteAccessMutex.lock(); }
   void writerLeave() { readWriteAccessMutex.unlock(); }
-  void setRWTX(Txn *txn) { rwtx = txn; }
+  void resetRWTX();
   int getFd() const { return this->fd; }
   size_t freeListSerialSize() const { return freeList.size(); }
   void resetData();

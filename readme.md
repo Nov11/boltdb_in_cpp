@@ -4,7 +4,9 @@
 * based on version tagged 1.3.1
 * supports x86_64 linux only
 * compiles against C++ 11
-* will be tested on ubuntu 17.10
+* will be tested on ubuntu 18
+* do performance comparision with [LMDB](https://github.com/LMDB/lmdb) when all test cases are ported & passed
+* refactory is needed as C++ enforce encapsulation in language feature
 
 
 ### todo
@@ -66,3 +68,10 @@
     * (acquire)1.begin a new rw/ro txn 2.remove a txn
     * (release)1.txn being created 2. removed a txn
 * rwmtx, mmaplock, metalock are acquired and released during database shutdown
+
+### memory management
+* txn maintains a local memory manage in charge of every allocation/deallocation of its own and release all the memory
+ on txn destruction which happens when the txn is removed from its database(for ro txn) or txn is reset so that it is not the
+ current rw txn any more.
+* database object is maintained by user application. typically should be used with a smart pointer. this implementation assume that 
+user takes care of memory re collection for a database object.

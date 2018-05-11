@@ -41,7 +41,7 @@ void Txn::for_each_page(page_id pageId, int depth,
   if (p->flag & static_cast<uint32_t>(PageFlag::branchPageFlag)) {
     for (int i = 0; i < p->getCount(); i++) {
       auto element = p->getBranchPageElement(i);
-      for_each_page(element->pageId, depth, fn);
+      for_each_page(element->pageId, depth + 1, fn);
     }
   }
 }
@@ -49,7 +49,6 @@ void Txn::for_each_page(page_id pageId, int depth,
 void Txn::init(DB *db) {
   this->db = db;
   metaData = Meta::copyCreateFrom(db->meta());
-  // todo:reset bucket using member function
   rootBucket.setTxn(this);
   rootBucket.setBucketHeader(metaData->rootBucketHeader);
   if (writable) {
@@ -155,7 +154,7 @@ void Txn::closeTxn() {
   }
 
   if (writable) {
-    db->setRWTX(nullptr);
+    db->resetRWTX();
     db->writerLeave();
   } else {
     db->removeTxn(this);
@@ -211,11 +210,11 @@ int Txn::write() {
   return 0;
 }
 
-bool Txn::freelistcheck() {
+int Txn::isFreelistCheckOK() {
   std::map<page_id, bool> freePageIds;
   for (auto item : db->getFreeLIst().pageIds) {
     if (freePageIds.find(item) != freePageIds.end()) {
-      return false;
+      return -1;
     }
     freePageIds[item] = true;
   }
@@ -223,7 +222,7 @@ bool Txn::freelistcheck() {
   for (auto &p : db->getFreeLIst().pending) {
     for (auto item : p.second) {
       if (freePageIds.find(item) != freePageIds.end()) {
-        return false;
+        return -1;
       }
       freePageIds[item] = true;
     }
@@ -232,33 +231,34 @@ bool Txn::freelistcheck() {
   std::map<page_id, Page *> occupiedPageIds;
   occupiedPageIds[0] = getPage(0);
   occupiedPageIds[1] = getPage(1);
+  //add all pages included in free list page, it could be many consecutive pages there
   for (size_t i = 0; i <= getPage(metaData->freeListPageNumber)->overflow;
        i++) {
     occupiedPageIds[metaData->freeListPageNumber + i] =
         getPage(metaData->freeListPageNumber);
   }
 
-  if (checkBucket(rootBucket, occupiedPageIds, freePageIds)) {
-    return false;
+  if (!isBucketsRemainConsistent(rootBucket, occupiedPageIds, freePageIds)) {
+    return -1;
   }
 
   for (size_t i = 0; i < metaData->totalPageNumber; i++) {
     if ((occupiedPageIds.find(i) == occupiedPageIds.end()) && (freePageIds.find(i) == freePageIds.end())) {
-      return false;
+      return -1;
     }
   }
-  return true;
+  return 0;
 }
 
-bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
-                      std::map<page_id, bool> &freed) {
-  if (bucket.isInlineBucket() == 0) {
+bool Txn::isBucketsRemainConsistent(Bucket &bucket, std::map<page_id, Page *> &reachable,
+                                    std::map<page_id, bool> &freed) {
+  if (bucket.isInlineBucket()) {
     return true;
   }
   bool ret = true;
   bucket.tx->for_each_page(
       bucket.bucketHeader.rootPageId, 0, [&, this](Page *page, int i) {
-        if (page->pageId > metaData->totalPageNumber) {
+        if (page->pageId >= metaData->totalPageNumber) {
           ret = false;
           return;
         }
@@ -274,12 +274,15 @@ bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
         }
 
         if (freed.find(page->pageId) != freed.end()) {
+          // this page appeared in free list
           ret = false;
           return;
         }
 
         PageFlag pf = static_cast<PageFlag>(page->flag);
+        //one page of a bucket must be either branch page or leaf page
         if (pf != PageFlag::branchPageFlag && pf != PageFlag::leafPageFlag) {
+          ret = false;
           return;
         }
       });
@@ -288,14 +291,17 @@ bool Txn::checkBucket(Bucket &bucket, std::map<page_id, Page *> &reachable,
     return ret;
   }
 
-  bucket.for_each([&, this](const Item &k, const Item &v) {
+  //check every sub buckets of current bucket
+  auto bucketCheck = bucket.for_each([&, this](const Item &k, const Item &v) {
     auto child = bucket.getBucketByName(k);
     if (child) {
-      this->checkBucket(*child, reachable, freed);
+      if (!this->isBucketsRemainConsistent(*child, reachable, freed)) {
+        return 1;
+      }
     }
     return 0;
   });
-  return true;
+  return bucketCheck == 0;
 }
 
 txn_id Txn::txnId() const { return metaData->txnId; }
