@@ -53,4 +53,19 @@ TEST(dbtest, dbtest_reopendb_Test) {
   EXPECT_EQ(ret, 0);
   db2->closeDB();
 }
+
+//open a truncated db
+TEST(dbtest, dbtest_open_truncatefile_Test) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  db1->openDB(name, S_IRWXU);
+  db1->closeDB();
+  int fd = open(name.c_str(), O_RDWR);
+  EXPECT_NE(fd, -1);
+  auto ret = ftruncate(fd, 0x1000);
+  EXPECT_EQ(ret, 0);
+  std::unique_ptr<DB> db2(new DB);
+  EXPECT_EQ(db2->openDB(name, S_IRWXU), nullptr);
+  db2->closeDB();
+}
 }
