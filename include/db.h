@@ -13,6 +13,7 @@
 #include <stack>
 #include <string>
 #include <vector>
+#include <memory>
 #include "bucket_header.h"
 #include "rwlock.h"
 #include "types.h"

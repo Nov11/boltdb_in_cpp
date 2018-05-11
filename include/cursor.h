@@ -6,7 +6,7 @@
 #define BOLTDB_IN_CPP_CURSOR_H
 
 #include <cstdint>
-#include <stack>
+#include <deque>
 #include <vector>
 #include "db.h"
 #include "types.h"
@@ -31,7 +31,7 @@ struct ElementRef {
 
 struct Cursor {
   Bucket *bucket = nullptr;
-  std::stack<ElementRef> stk;
+  std::deque<ElementRef> dq;
 
   Cursor() = default;
   explicit Cursor(Bucket *bucket1) : bucket(bucket1) {}

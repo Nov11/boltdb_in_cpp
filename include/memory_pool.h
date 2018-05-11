@@ -11,6 +11,7 @@
 #include <cstring>
 #include <utility>
 #include <vector>
+#include <iostream>
 namespace boltDB_CPP {
 
 /**
@@ -29,6 +30,7 @@ class MemoryPool {
  public:
   ~MemoryPool() {
     for (auto item : arrays) {
+//      std::cout << "delete " << std::showbase << std::hex << (void *) item << std::endl;
       delete[] item;
     }
   }
@@ -38,12 +40,13 @@ class MemoryPool {
       ret[i] = 0;
     }
     arrays.push_back(ret);
+//    std::cout << "allocate " << std::showbase << std::hex << (void *) ret << std::endl;
     return ret;
   }
-  template <class T, class... Args>
+  template<class T, class... Args>
   T *allocate(Args &&... args) {
     auto ret = allocateByteArray(sizeof(T));
-    new (ret) T(std::forward<Args>(args)...);
+    new(ret) T(std::forward<Args>(args)...);
     return reinterpret_cast<T *>(ret);
   }
   void deallocateByteArray(char *ptr) {
@@ -52,7 +55,7 @@ class MemoryPool {
     delete[] ptr;
     arrays.erase(iter);
   }
-  template <class T>
+  template<class T>
   void deallocate(T *ptr) {
     char *cptr = reinterpret_cast<char *>(ptr);
     deallocateByteArray(cptr);

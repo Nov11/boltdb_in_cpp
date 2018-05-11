@@ -31,14 +31,14 @@ size_t ElementRef::count() const {
 }
 
 void Cursor::keyValue(Item &key, Item &value, uint32_t &flag) {
-  if (stk.empty()) {
+  if (dq.empty()) {
     key.reset();
     value.reset();
     flag = 0;
     return;
   }
 
-  auto ref = stk.top();
+  auto ref = dq.back();
   if (ref.count() == 0 || ref.index >= ref.count()) {
     std::cerr << "get Key/value from empty bucket / index out of range"
               << std::endl;
@@ -72,7 +72,7 @@ void Cursor::search(const Item &key, page_id pageId) {
     assert(false);
   }
   ElementRef ref{page, node};
-  stk.push(ref);
+  dq.push_back(ref);
   if (ref.isLeaf()) {
     searchLeaf(key);
     return;
@@ -86,8 +86,8 @@ void Cursor::search(const Item &key, page_id pageId) {
 }
 
 void Cursor::searchLeaf(const Item &key) {
-  assert(!stk.empty());
-  ElementRef &ref = stk.top();
+  assert(!dq.empty());
+  ElementRef &ref = dq.back();
 
   bool found = false;
   if (ref.node) {
@@ -107,8 +107,8 @@ void Cursor::searchBranchNode(const Item &key, Node *node) {
   if (!found && index > 0) {
     index--;
   }
-  assert(!stk.empty());
-  stk.top().index = index;
+  assert(!dq.empty());
+  dq.back().index = index;
   search(key, node->getInode(index).pageId);
 }
 void Cursor::searchBranchPage(const Item &key, Page *page) {
@@ -119,18 +119,15 @@ void Cursor::searchBranchPage(const Item &key, Page *page) {
   if (!found && index > 0) {
     index--;
   }
-  assert(!stk.empty());
-  stk.top().index = index;
+  assert(!dq.empty());
+  dq.back().index = index;
   search(key, branchElements[index].pageId);
 }
 void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
-  {
-    decltype(stk) tmp;
-    swap(stk, tmp);
-  }
+  dq.clear();
   search(searchKey, bucket->getRootPage());
 
-  auto &ref = stk.top();
+  auto &ref = dq.back();
   if (ref.index >= ref.count()) {
     key.reset();
     value.reset();
@@ -145,16 +142,11 @@ void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
  * @return
  */
 Node *Cursor::getNode() const {
-  if (!stk.empty() && stk.top().node && stk.top().isLeaf()) {
-    stk.top().node;
+  if (!dq.empty() && dq.back().node && dq.back().isLeaf()) {
+    dq.back().node;
   }
 
-  std::stack<ElementRef> stk_cpy = stk;
-  std::vector<ElementRef> v;
-  while (!stk_cpy.empty()) {
-    v.push_back(stk_cpy.top());
-    stk_cpy.pop();
-  }
+  std::vector<ElementRef> v(dq.begin(), dq.end());
   std::reverse(v.begin(), v.end());
 
   assert(!v.empty());
@@ -165,7 +157,7 @@ Node *Cursor::getNode() const {
 
   for (size_t i = 0; i + 1 < v.size(); i++) {
     assert(!node->isLeafNode());
-    node = node->childAt(stk.top().index);
+    node = node->childAt(dq.back().index);
   }
 
   assert(node->isLeafNode());
@@ -173,17 +165,17 @@ Node *Cursor::getNode() const {
 }
 void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   while (true) {
-    while (!stk.empty()) {
-      auto &ref = stk.top();
+    while (!dq.empty()) {
+      auto &ref = dq.back();
       // not the last element
       if (ref.index + 1 < ref.count()) {
         ref.index++;
         break;
       }
-      stk.pop();
+      dq.pop_back();
     }
 
-    if (stk.empty()) {
+    if (dq.empty()) {
       key.reset();
       value.reset();
       flag = 0;
@@ -192,7 +184,7 @@ void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
 
     do_first();
     // not sure what this intends to do
-    if (stk.top().count() == 0) {
+    if (dq.back().count() == 0) {
       continue;
     }
 
@@ -204,12 +196,12 @@ void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
 // get to first leaf element under the last page in the stack
 void Cursor::do_first() {
   while (true) {
-    assert(!stk.empty());
-    if (stk.top().isLeaf()) {
+    assert(!dq.empty());
+    if (dq.back().isLeaf()) {
       break;
     }
 
-    auto &ref = stk.top();
+    auto &ref = dq.back();
     page_id pageId = 0;
     if (ref.node != nullptr) {
       pageId = ref.node->getInode(ref.index).pageId;
@@ -221,12 +213,13 @@ void Cursor::do_first() {
     Node *node = nullptr;
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
-    stk.push(element);
+    dq.push_back(element);
   }
 }
 void Cursor::do_last() {
   while (true) {
-    auto &ref = stk.top();
+    assert(!dq.empty());
+    auto &ref = dq.back();
     if (ref.isLeaf()) {
       break;
     }
@@ -243,7 +236,7 @@ void Cursor::do_last() {
     bucket->getPageNode(pageId, node, page);
     ElementRef element(page, node);
     element.index = element.count() - 1;
-    stk.push(element);
+    dq.push_back(element);
   }
 }
 int Cursor::remove() {
@@ -278,7 +271,7 @@ void Cursor::seek(const Item &searchKey, Item &key, Item &value,
   value.reset();
   flag = 0;
   do_seek(searchKey, key, value, flag);
-  auto &ref = stk.top();
+  auto &ref = dq.back();
   if (ref.index >= ref.count()) {
     flag = 0;
     key.reset();
@@ -290,16 +283,16 @@ void Cursor::seek(const Item &searchKey, Item &key, Item &value,
 void Cursor::prev(Item &key, Item &value) {
   key.reset();
   value.reset();
-  while (!stk.empty()) {
-    auto &ref = stk.top();
+  while (!dq.empty()) {
+    auto &ref = dq.back();
     if (ref.index > 0) {
       ref.index--;
       break;
     }
-    stk.pop();
+    dq.pop_back();
   }
 
-  if (stk.empty()) {
+  if (dq.empty()) {
     return;
   }
 
@@ -317,16 +310,13 @@ void Cursor::next(Item &key, Item &value) {
 void Cursor::last(Item &key, Item &value) {
   key.reset();
   value.reset();
-  {
-    decltype(stk) tmp;
-    swap(stk, tmp);
-  }
+  dq.clear();
   Page *page = nullptr;
   Node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
   element.index = element.count() - 1;
-  stk.push(element);
+  dq.push_back(element);
   do_last();
   uint32_t flag = 0;
   keyValue(key, value, flag);
@@ -334,18 +324,18 @@ void Cursor::last(Item &key, Item &value) {
 void Cursor::first(Item &key, Item &value) {
   key.reset();
   value.reset();
-  stk = std::stack<ElementRef>();
+  dq.clear();
   Page *page = nullptr;
   Node *node = nullptr;
   bucket->getPageNode(bucket->getRootPage(), node, page);
   ElementRef element{page, node};
 
-  stk.push(element);
+  dq.push_back(element);
   do_first();
 
   uint32_t flag = 0;
   // what does this do?
-  if (stk.top().count() == 0) {
+  if (dq.back().count() == 0) {
     do_next(key, value, flag);
   }
 

@@ -4,6 +4,7 @@
 
 #ifndef BOLTDB_IN_CPP_METADATA_H
 #define BOLTDB_IN_CPP_METADATA_H
+#include <cstdint>
 #include "util.h"
 namespace boltDB_CPP {
 struct Meta {

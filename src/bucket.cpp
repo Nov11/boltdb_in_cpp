@@ -20,7 +20,9 @@ Bucket *Bucket::newBucket(Txn *tx_p) {
 
 Cursor *Bucket::createCursor() {
   tx->increaseCurserCount();
-  return tx->pool.allocate<Cursor>(this);
+  auto ret = tx->pool.allocate<Cursor>(this);
+//  std::cout << std::showbase << std::hex << (void *) ret << std::endl;
+  return ret;
 }
 
 void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
@@ -147,7 +149,7 @@ Bucket *Bucket::openBucket(const Item &value) {
   //</del>
 
   if (child->tx->isWritable()) {
-    std::memcpy((char *)&child->bucketHeader, value.pointer,
+    std::memcpy((char *) &child->bucketHeader, value.pointer,
                 sizeof(bucketHeader));
   } else {
     child->bucketHeader =
@@ -172,7 +174,7 @@ Item Bucket::write() {
   *(reinterpret_cast<BucketHeader *>(result)) = bucketHeader;
 
   // serialize node after bucketHeader
-  auto pageInBuffer = (Page *)&result[BUCKETHEADERSIZE];
+  auto pageInBuffer = (Page *) &result[BUCKETHEADERSIZE];
   rootNode->write(pageInBuffer);
 
   return Item{result, length};
