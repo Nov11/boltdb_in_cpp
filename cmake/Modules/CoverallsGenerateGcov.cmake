@@ -291,7 +291,7 @@ set(JSON_TEMPLATE
 }"
         )
 message("======@@@@@@@@@@@@@==========")
-message("${JSON_TEMPLATE}")
+#message("${JSON_TEMPLATE}")
 
 set(SRC_FILE_TEMPLATE
         "{
@@ -486,7 +486,7 @@ string(CONFIGURE ${JSON_TEMPLATE} JSON)
 file(WRITE "${COVERALLS_OUTPUT_FILE}" "${JSON}")
 message("###########################################################################")
 message("Generated coveralls JSON containing coverage data:")
-message("${COVERALLS_OUTPUT_FILE}")
+#message("${COVERALLS_OUTPUT_FILE}")
 message("###########################################################################")
 
-message("content: ${JSON}")
+#message("content: ${JSON}")
