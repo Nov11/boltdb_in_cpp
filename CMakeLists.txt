@@ -11,22 +11,25 @@ find_package(Threads REQUIRED)
 
 # ---[ Using cmake scripts and modules
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
+# -- [ Coverage
+option(COVERALLS "Generate coveralls data" OFF)
 
-include(Coveralls)
-include(Utils)
-coveralls_turn_on_coverage()
+if (COVERALLS)
+    include(Coveralls)
+    include(Utils)
+    coveralls_turn_on_coverage()
 
-# Create the coveralls target.
-file(GLOB_RECURSE srcs ${PROJECT_SOURCE_DIR}/src/*.cpp)
+    # Create the coveralls target.
+    file(GLOB_RECURSE srcs ${PROJECT_SOURCE_DIR}/src/*.cpp)
 
-peloton_convert_absolute_paths(srcs)
-peloton_convert_absolute_paths(parser_srcs)
+    peloton_convert_absolute_paths(srcs)
+    peloton_convert_absolute_paths(parser_srcs)
 
-#message(STATUS "Coverage srcs : ${srcs}" )
-set(COVERAGE_SRCS ${srcs})
+    #message(STATUS "Coverage srcs : ${srcs}" )
+    set(COVERAGE_SRCS ${srcs})
 
-coveralls_setup("${COVERAGE_SRCS}" ON)
-
+    coveralls_setup("${COVERAGE_SRCS}" ON)
+endif ()
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/test/include)
