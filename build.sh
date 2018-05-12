@@ -4,6 +4,6 @@ if [ ! -d "build" ] ; then
 fi
 
 cd build
-cmake ..
+cmake .. -DCMAKE_BUILD_TYPE=Debug
 make -j4
 make check
