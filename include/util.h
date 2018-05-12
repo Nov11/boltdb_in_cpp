@@ -42,7 +42,7 @@ int cmp_wrapper(const T &t, const Item &p) {
   if (t.Key() == p) {
     return 0;
   }
-  return -1;
+  return 1;
 }
 
 // template<typename T, typename... Args>

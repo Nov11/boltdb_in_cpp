@@ -32,7 +32,7 @@ struct Cursor {
   Bucket *bucket = nullptr;
   std::deque<ElementRef> dq;
 
-  Cursor() = default;
+  Cursor() = delete;
   explicit Cursor(Bucket *bucket1) : bucket(bucket1) {}
 
   Bucket *getBucket() const { return bucket; }

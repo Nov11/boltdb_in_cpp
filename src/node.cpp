@@ -11,7 +11,7 @@
 #include "txn.h"
 #include "util.h"
 namespace boltDB_CPP {
-template <>
+template<>
 int cmp_wrapper<Inode>(const Inode &t, const Item &p) {
   if (t.key < p) {
     return -1;
@@ -19,7 +19,7 @@ int cmp_wrapper<Inode>(const Inode &t, const Item &p) {
   if (t.key == p) {
     return 0;
   }
-  return -1;
+  return 1;
 }
 void Node::read(boltDB_CPP::Page *page) {
   // this is called inside a function, should not receive nullptr
@@ -132,6 +132,9 @@ Node *Node::nextSibling() {
   return parentNode->childAt(idx + 1);
 }
 
+//55c3 daec 12c8
+//5557 e4a2 a7f0
+//55c1 89c7 c7f0
 void Node::put(const Item &oldKey, const Item &newKey, const Item &value,
                page_id pageId, uint32_t flag) {
   if (pageId >= bucket->getTotalPageNumber()) {
@@ -162,9 +165,10 @@ void Node::del(const Item &key) {
   if (!found) {
     return;
   }
-  for (size_t i = ret; i + 1 < inodeList.size(); i++) {
-    inodeList[i] = inodeList[i + 1];
-  }
+//  for (size_t i = ret; i + 1 < inodeList.size(); i++) {
+//    inodeList[i] = inodeList[i + 1];
+//  }
+  inodeList.erase(inodeList.begin() + ret);
 
   // need re-balance
   unbalanced = true;
@@ -189,17 +193,17 @@ void Node::write(Page *page) {
 
   //|page header | leaf/branch element .... | kv pair ...  |
   //|<-page start| &page->ptr               |<-contentPtr  |<-page end
-  auto contentPtr = (&page->ptr)[inodeList.size() * pageElementSize()];
+  auto contentPtr = &(reinterpret_cast<char *>(&page->ptr)[inodeList.size() * pageElementSize()]);
   for (size_t i = 0; i < inodeList.size(); i++) {
     if (isLeaf) {
       auto item = page->getLeafPageElement(i);
-      item->pos = contentPtr - (char *)&item;
+      item->pos = contentPtr - (char *) item;
       item->flag = inodeList[i].flag;
       item->ksize = inodeList[i].key.length;
       item->vsize = inodeList[i].value.length;
     } else {
       auto item = page->getBranchPageElement(i);
-      item->pos = contentPtr - (char *)&item;
+      item->pos = contentPtr - (char *) &item;
       item->ksize = inodeList[i].key.length;
       item->pageId = inodeList[i].pageId;
     }
@@ -218,7 +222,7 @@ std::vector<Node *> Node::split(size_t pageSize) {
   while (true) {
     Node *a;
     Node *b;
-    splitTwo(pageSize, a, b);
+    cur->splitTwo(pageSize, a, b);
     result.push_back(a);
     if (b == nullptr) {
       break;
@@ -231,11 +235,12 @@ std::vector<Node *> Node::split(size_t pageSize) {
 // used only inside split
 void Node::splitTwo(size_t pageSize, Node *&a, Node *&b) {
   if (inodeList.size() <= MINKEYSPERPAGE * 2 || sizeLessThan(pageSize)) {
-    a = nullptr;
+    a = this;
     b = nullptr;
     return;
   }
 
+  //calculate threshold
   double fill = bucket->getFillPercent();
   if (fill < MINFILLPERCENT) {
     fill = MINFILLPERCENT;
@@ -246,30 +251,31 @@ void Node::splitTwo(size_t pageSize, Node *&a, Node *&b) {
 
   auto threshold = static_cast<size_t>(pageSize * fill);
 
-  size_t sz;
-  auto index = splitIndex(threshold, sz);
+  //determinate split position
+  auto index = splitIndex(threshold);
 
   if (parentNode == nullptr) {
     // using share pointer to deal with this
-    parentNode = bucket->getPool().allocate<Node>();
-    parentNode->bucket = bucket;
+    parentNode = bucket->getPool().allocate<Node>(bucket, nullptr);
     parentNode->children.push_back(this);
   }
 
-  auto newNode = bucket->getPool().allocate<Node>();
-  newNode->bucket = bucket;
+  auto newNode = bucket->getPool().allocate<Node>(bucket, parentNode);
   newNode->isLeaf = isLeaf;
-  newNode->parentNode = parentNode;
   parentNode->children.push_back(newNode);
 
   for (size_t i = index; i < inodeList.size(); i++) {
     newNode->inodeList.push_back(inodeList[i]);
   }
   inodeList.erase(inodeList.begin() + index, inodeList.end());
+
+  a = this;
+  b = newNode;
 }
-size_t Node::splitIndex(size_t threshold, size_t &sz) {
+
+size_t Node::splitIndex(size_t threshold) {
   size_t index = 0;
-  sz = PAGEHEADERSIZE;
+  size_t sz = PAGEHEADERSIZE;
   for (size_t i = 0; i < inodeList.size() - MINKEYSPERPAGE; i++) {
     index = i;
     auto &ref = inodeList[i];
@@ -281,6 +287,7 @@ size_t Node::splitIndex(size_t threshold, size_t &sz) {
   }
   return index;
 }
+
 void Node::free() {
   if (pageId) {
     auto txn = bucket->getTxn();
@@ -346,6 +353,7 @@ int Node::spill() {
   auto nodes = split(DB::getPageSize());
 
   for (auto &item : nodes) {
+    assert(item);
     if (item->pageId > 0) {
       tx->free(tx->txnId(), tx->getPage(item->pageId));
     }

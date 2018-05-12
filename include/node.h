@@ -19,7 +19,7 @@ typedef std::vector<Node *> NodeList;
 // with key value equals to 'key' member and the value is meaningless. may use
 // an union to wrap up pageId and value
 struct Inode {
-  uint32_t flag = 0;
+  uint32_t flag = 0;//==bucketleaf if this is an inline bucket. otherwise == 0
   page_id pageId = 0;
   Item key;
   Item value;
@@ -46,6 +46,7 @@ class Node {
   InodeList inodeList;
 
  public:
+  explicit Node(Bucket *b, Node *p) : bucket(b), parentNode(p) {}
   /**
    * setter
    */
@@ -84,9 +85,7 @@ class Node {
   void write(Page *page);
   std::vector<Node *> split(size_t pageSize);
   void splitTwo(size_t pageSize, Node *&a, Node *&b);
-  size_t splitIndex(
-      size_t threshold,
-      size_t &sz);  // sz is return value. it's the size of the first page.
+  size_t splitIndex(size_t threshold);  // sz is return value. it's the size of the first page.
   void free();
   void removeChild(Node *target);
   void dereference();

@@ -57,6 +57,7 @@ class Txn {
   MemoryPool pool;
 
  public:
+  Txn() : rootBucket(this) {}
   txn_id txnId() const;
   void free(txn_id tid, Page *page);
   size_t getTotalPageNumber() { return metaData->totalPageNumber; }

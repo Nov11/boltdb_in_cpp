@@ -9,6 +9,7 @@ extern "C" {
 #include "memory_pool.h"
 #include "db.h"
 namespace boltDB_CPP {
+
 bool Meta::validate() {
   if (magic != MAGIC) {
     return false;
@@ -20,6 +21,7 @@ bool Meta::validate() {
 
   return !(checkSum != 0 && checkSum != sum64());
 }
+
 void Meta::write(Page *page) {
   if (rootBucketHeader.rootPageId >= totalPageNumber) {
     assert(false);
@@ -31,15 +33,17 @@ void Meta::write(Page *page) {
   page->pageId = txnId % 2;
   page->flag |= static_cast<uint32_t>(PageFlag::metaPageFlag);
 
-  checkSum = 0;
+  checkSum = sum64();
 
   std::memcpy(page->metaPointer(), this, sizeof(Meta));
 }
+
 uint64_t Meta::sum64() {
   uint64_t result = 0;
   result = ::fnv_64a_buf(this, offsetof(Meta, checkSum), FNV1A_64_INIT);
   return result;
 }
+
 Meta *Meta::copyCreateFrom(Meta *other, MemoryPool &pool) {
   if (other == nullptr) {
     return other;

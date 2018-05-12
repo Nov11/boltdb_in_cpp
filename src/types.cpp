@@ -4,13 +4,21 @@
 
 #include "types.h"
 #include "memory_pool.h"
-namespace boltDB_CPP{
+namespace boltDB_CPP {
 
 bool Item::operator==(const Item &other) const {
   if (this == &other) {
     return true;
   }
-  return pointer == other.pointer && length == other.length;
+  if (length != other.length) {
+    return false;
+  }
+  for (size_t i = 0; i < length; i++) {
+    if (pointer[i] != other.pointer[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 bool Item::operator!=(const Item &other) const {
   return !(this->operator==(other));
@@ -19,14 +27,14 @@ bool Item::operator<(const Item &other) const {
   size_t i = 0;
   size_t j = 0;
   while (i < length && j < other.length) {
-    if (pointer[i] == pointer[j]) {
+    if (pointer[i] == other.pointer[j]) {
       i++;
       j++;
       continue;
     }
-    return pointer[i] < pointer[j];
+    return pointer[i] < other.pointer[j];
   }
-  return false;
+  return i == length && j != other.length;
 }
 void Item::reset() {
   pointer = nullptr;

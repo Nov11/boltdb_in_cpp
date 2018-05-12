@@ -49,7 +49,6 @@ void Txn::for_each_page(page_id pageId, int depth,
 void Txn::init(DB *db) {
   this->db = db;
   metaData = Meta::copyCreateFrom(db->meta(), pool);
-  rootBucket.setTxn(this);
   rootBucket.setBucketHeader(metaData->rootBucketHeader);
   if (writable) {
     metaData->txnId += 1;
@@ -80,7 +79,7 @@ int Txn::for_each(std::function<int(const Item &name, Bucket *b)> fn) {
 void Txn::OnCommit(std::function<void()> fn) { commitHandlers.push_back(fn); }
 
 /**
- *
+ * deal with txn level work. db will release this txn' resources in upper level
  * @return disk write error / called on read only txn (what? I think read only
  * txn should succeed on doing commit)
  */
@@ -100,7 +99,7 @@ int Txn::commit() {
   auto pgid = metaData->totalPageNumber;
 
   free(metaData->txnId, db->pagePointer(metaData->freeListPageNumber));
-  auto page = allocate((db->freeListSerialSize() / db->getPageSize()) + 1);
+  auto page = allocate((db->freeListSerialSize() / boltDB_CPP::DB::getPageSize()) + 1);
   if (page == nullptr) {
     rollback();
     return -1;
@@ -119,12 +118,12 @@ int Txn::commit() {
     }
   }
 
-  if (!write()) {
+  if (write() != 0) {
     rollback();
     return -1;
   }
 
-  if (!writeMeta()) {
+  if (writeMeta() != 0) {
     rollback();
     return -1;
   }
@@ -136,6 +135,9 @@ int Txn::commit() {
   return 0;
 }
 
+/**
+ * this should be move to db class other than placed here
+ */
 void Txn::rollback() {
   if (db == nullptr) {
     return;
@@ -146,14 +148,12 @@ void Txn::rollback() {
   }
 }
 
-
-
 int Txn::writeMeta() {
-  std::vector<char> tmp(db->getPageSize());
+  std::vector<char> tmp(boltDB_CPP::DB::getPageSize());
   Page *page = reinterpret_cast<Page *>(tmp.data());
   metaData->write(page);
 
-  if (db->writeAt(tmp.data(), tmp.size(), page->pageId * db->getPageSize())) {
+  if (db->writeAt(tmp.data(), tmp.size(), page->pageId * boltDB_CPP::DB::getPageSize()) != tmp.size()) {
     return -1;
   }
 
@@ -176,7 +176,7 @@ int Txn::write() {
   for (auto p : pages) {
     auto length = (p->overflow + 1) * db->getPageSize();
     auto offset = p->pageId * db->getPageSize();
-    if (db->writeAt(reinterpret_cast<char *>(p), length, offset)) {
+    if (db->writeAt(reinterpret_cast<char *>(p), length, offset) != length) {
       return -1;
     }
   }

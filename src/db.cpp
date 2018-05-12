@@ -24,22 +24,25 @@ Page *boltDB_CPP::DB::pagePointer(page_id pageId) {
 FreeList &DB::getFreeLIst() { return freeList; }
 uint64_t DB::getPageSize() { return pageSize; }
 
+/**
+ * return the meta that has maximal txn id, or current txn will not be able to read most recent updates
+ */
 Meta *DB::meta() {
   auto m0 = meta0;
   auto m1 = meta1;
-  if (meta0->txnId > meta1->txnId) {
+  if (m0->txnId < m1->txnId) {
     m0 = meta1;
     m1 = meta0;
   }
   if (m0->validate()) {
     return m0;
   }
-
   if (m1->validate()) {
     return m1;
   }
   assert(false);
 }
+
 void DB::removeTxn(Txn *txn) {
   mmapLock.readUnlock();
   std::lock_guard<std::mutex> guard(metaLock);
@@ -51,6 +54,7 @@ void DB::removeTxn(Txn *txn) {
     }
   }
 }
+
 int DB::grow(size_t sz) {
   if (sz <= fileSize) {
     return 0;
@@ -76,6 +80,7 @@ int DB::grow(size_t sz) {
   fileSize = sz;
   return 0;
 }
+
 int DB::init() {
   //2 meta pages, 1 freelist page, 1 leaf node page
   std::vector<char> buf(pageSize * 4);
@@ -112,7 +117,8 @@ int DB::init() {
     p->count = 0;
   }
 
-  if (buf.size() != writeAt(buf.data(), buf.size(), 0)) {
+  ssize_t writtenOut = writeAt(buf.data(), buf.size(), 0);
+  if (buf.size() != writtenOut) {
     return -1;
   }
 
@@ -123,6 +129,7 @@ int DB::init() {
   fileSize = 4 * pageSize;
   return 0;
 }
+
 Page *DB::pageInBuffer(char *ptr, size_t length, page_id pageId) {
   assert(length > pageId * pageSize);
   return reinterpret_cast<Page *>(ptr + pageId * pageSize);
@@ -504,6 +511,23 @@ int DB::mmap_db_file(DB *database, size_t sz) {
 //  database->dataSize = (sz);
   database->resetData(ret, ret, sz);
   return 0;
+}
+
+/**
+ * commit the txn, rollback & return -1 on failure
+ * @param txn
+ * @return commited  ? 0 : -1
+ */
+int DB::commitTxn(Txn *txn) {
+  assert(txn);
+  auto ret = txn->commit();
+  closeTx(txn);
+  return ret;
+}
+
+void DB::rollbackTxn(Txn *txn) {
+  assert(txn);
+  txn->rollback();
 }
 
 void FreeList::free(txn_id tid, Page *page) {

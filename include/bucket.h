@@ -34,6 +34,7 @@ class Bucket {
   friend class Txn;
 
  public:
+  explicit Bucket(Txn *tx_p) : tx(tx_p) {}
   void setBucketHeader(BucketHeader &bh) { bucketHeader = bh; }
   void setTxn(Txn *txn) { tx = txn; }
   Txn *getTxn() const { return tx; }

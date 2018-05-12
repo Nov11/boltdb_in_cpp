@@ -13,8 +13,7 @@
 namespace boltDB_CPP {
 
 Bucket *Bucket::newBucket(Txn *tx_p) {
-  auto bucket = tx_p->pool.allocate<Bucket>();
-  bucket->tx = tx_p;
+  auto bucket = tx_p->pool.allocate<Bucket>(tx_p);
   return bucket;
 }
 
@@ -54,17 +53,17 @@ void Bucket::getPageNode(page_id pageId_p, Node *&node_p, Page *&page_p) {
 
 // create a node from a page and associate it with a given parent
 Node *Bucket::getNode(page_id pageId, Node *parent) {
+  //if the page is in the cache, return it
   auto iter = nodes.find(pageId);
   if (iter != nodes.end()) {
     return iter->second;
   }
 
-  auto node = tx->pool.allocate<Node>();
-
-  node->setBucket(this);
-  node->setParent(parent);
+  //make a new node
+  auto node = tx->pool.allocate<Node>(this, parent);
 
   if (parent == nullptr) {
+    assert(rootNode == nullptr);
     rootNode = node;
   } else {
     parent->addChild(node);
@@ -76,6 +75,7 @@ Node *Bucket::getNode(page_id pageId, Node *parent) {
   }
 
   node->read(p);
+  //add this new created node to node cache
   nodes[pageId] = node;
 
   tx->increaseNodeCount();
@@ -99,7 +99,9 @@ Bucket *Bucket::getBucketByName(const Item &searchKey) {
     return nullptr;
   }
 
-  openBucket(value);
+  auto result = openBucket(value);
+  buckets[searchKey] = result;
+  return result;
 }
 
 Bucket *Bucket::createBucket(const Item &key) {
@@ -107,7 +109,7 @@ Bucket *Bucket::createBucket(const Item &key) {
     std::cerr << "invalid param " << std::endl;
     return nullptr;
   }
-  auto c = Cursor();
+  auto c = Cursor(this);
   Item k;
   Item v;
   uint32_t flag;
@@ -122,9 +124,9 @@ Bucket *Bucket::createBucket(const Item &key) {
   }
 
   // create an empty inline bucket
-  Bucket bucket;
-  bucket.rootNode = tx->pool.allocate<Node>();
-  rootNode->markLeaf();
+  Bucket bucket(this->tx);
+  bucket.rootNode = tx->pool.allocate<Node>(&bucket, nullptr);
+  bucket.rootNode->markLeaf();
 
   // todo:use memory pool to fix memory leak
   Item putValue = bucket.write();
@@ -167,7 +169,7 @@ Bucket *Bucket::openBucket(const Item &value) {
 // serialize bucket header & rootNode
 Item Bucket::write() {
   size_t length = BUCKETHEADERSIZE + rootNode->size();
-
+  assert(tx);
   char *result = tx->pool.allocateByteArray(length);
 
   // write bucketHeader in the front
@@ -350,10 +352,7 @@ int Bucket::put(const Item &key, const Item &value) {
     return -1;
   }
 
-  auto tmp = cloneBytes(key);
-  Item newKey(tmp, key.length);
-  c->getNode()->put(newKey, newKey, value, 0,
-                    static_cast<uint32_t>(PageFlag::bucketLeafFlag));
+  c->getNode()->put(key, key, value, 0, 0);
 
   return 0;
 }

@@ -143,8 +143,9 @@ class DB {
   bool readOnly = false;
 
   int munmap_db_file();
+  void closeTx(Txn *txn);
  public:
-  const std::function<int(char *, size_t, off_t)> writeAt =
+  const std::function<ssize_t(char *, size_t, off_t)> writeAt =
       [this](char *buf, size_t len, off_t offset) {
         auto ret = ::pwrite(fd, buf, len, offset);
         if (ret == -1) {
@@ -181,7 +182,8 @@ class DB {
   int view(std::function<int(Txn *tx)> fn);
   Txn *beginRWTx();
   Txn *beginTx();
-  void closeTx(Txn *txn);
+  int commitTxn(Txn *txn);
+  void rollbackTxn(Txn *txn);
   int mmap_db_file(DB *database, size_t sz);
 };
 
@@ -223,14 +225,15 @@ struct Page {
   char *ptr = nullptr;
 
   LeafPageElement *getLeafPageElement(uint64_t index) const {
-    assert(ptr);
-    const auto *list = reinterpret_cast<const LeafPageElement *>(ptr);
+    //it's not about ptr, but the memory address of ptr
+//    assert(ptr);
+    const auto *list = reinterpret_cast<const LeafPageElement *>(&ptr);
     return const_cast<LeafPageElement *>(&list[index]);
   }
 
   BranchPageElement *getBranchPageElement(uint64_t index) const {
-    assert(ptr);
-    const auto *list = reinterpret_cast<const BranchPageElement *>(ptr);
+//    assert(ptr);
+    const auto *list = reinterpret_cast<const BranchPageElement *>(&ptr);
     return const_cast<BranchPageElement *>(&list[index]);
   }
 
@@ -246,7 +249,7 @@ struct Page {
 enum class PageFlag : uint16_t {
   branchPageFlag = 0x01,
   leafPageFlag = 0x02,
-  bucketLeafFlag = 0x02,
+  bucketLeafFlag = 0x03,
   metaPageFlag = 0x04,
   freelistPageFlag = 0x10,
 };

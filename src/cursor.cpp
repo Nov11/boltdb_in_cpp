@@ -68,7 +68,7 @@ void Cursor::search(const Item &key, page_id pageId) {
   bucket->getPageNode(pageId, node, page);
   if (page &&
       (page->getFlag() & (static_cast<uint16_t>(PageFlag::branchPageFlag) |
-          static_cast<uint16_t>(PageFlag::leafPageFlag)))) {
+          static_cast<uint16_t>(PageFlag::leafPageFlag))) == 0) {
     assert(false);
   }
   ElementRef ref{page, node};
@@ -101,6 +101,7 @@ void Cursor::searchLeaf(const Item &key) {
   ref.index = static_cast<uint32_t>(binary_search(
       ptr, key, cmp_wrapper<LeafPageElement>, ref.page->count, found));
 }
+
 void Cursor::searchBranchNode(const Item &key, Node *node) {
   bool found = false;
   auto index = node->search(key, found);
@@ -111,6 +112,7 @@ void Cursor::searchBranchNode(const Item &key, Node *node) {
   dq.back().index = index;
   search(key, node->getInode(index).pageId);
 }
+
 void Cursor::searchBranchPage(const Item &key, Page *page) {
   auto branchElements = page->getBranchPageElement(0);
   bool found = false;
@@ -123,6 +125,7 @@ void Cursor::searchBranchPage(const Item &key, Page *page) {
   dq.back().index = index;
   search(key, branchElements[index].pageId);
 }
+
 void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
   dq.clear();
   search(searchKey, bucket->getRootPage());
@@ -143,11 +146,10 @@ void Cursor::do_seek(Item searchKey, Item &key, Item &value, uint32_t &flag) {
  */
 Node *Cursor::getNode() const {
   if (!dq.empty() && dq.back().node && dq.back().isLeaf()) {
-    dq.back().node;
+    return dq.back().node;
   }
 
   std::vector<ElementRef> v(dq.begin(), dq.end());
-  std::reverse(v.begin(), v.end());
 
   assert(!v.empty());
   Node *node = v[0].node;
@@ -155,14 +157,17 @@ Node *Cursor::getNode() const {
     node = bucket->getNode(v[0].page->pageId, nullptr);
   }
 
+  //the last one should be a leaf node
+  //transverse every branch node
   for (size_t i = 0; i + 1 < v.size(); i++) {
     assert(!node->isLeafNode());
-    node = node->childAt(dq.back().index);
+    node = node->childAt(v[i].index);
   }
 
   assert(node->isLeafNode());
   return node;
 }
+
 void Cursor::do_next(Item &key, Item &value, uint32_t &flag) {
   while (true) {
     while (!dq.empty()) {
@@ -216,6 +221,7 @@ void Cursor::do_first() {
     dq.push_back(element);
   }
 }
+
 void Cursor::do_last() {
   while (true) {
     assert(!dq.empty());
@@ -239,6 +245,7 @@ void Cursor::do_last() {
     dq.push_back(element);
   }
 }
+
 int Cursor::remove() {
   if (bucket->getTxn()->db == nullptr) {
     std::cerr << "db closed" << std::endl;
@@ -265,6 +272,7 @@ int Cursor::remove() {
   getNode()->do_remove(key);
   return 0;
 }
+
 void Cursor::seek(const Item &searchKey, Item &key, Item &value,
                   uint32_t &flag) {
   key.reset();
@@ -280,6 +288,7 @@ void Cursor::seek(const Item &searchKey, Item &key, Item &value,
   }
   keyValue(key, value, flag);
 }
+
 void Cursor::prev(Item &key, Item &value) {
   key.reset();
   value.reset();
@@ -301,12 +310,14 @@ void Cursor::prev(Item &key, Item &value) {
   keyValue(key, value, flag);
   // I think there's no need to clear value if current node is a branch node
 }
+
 void Cursor::next(Item &key, Item &value) {
   key.reset();
   value.reset();
   uint32_t flag = 0;
   do_next(key, value, flag);
 }
+
 void Cursor::last(Item &key, Item &value) {
   key.reset();
   value.reset();
@@ -321,6 +332,7 @@ void Cursor::last(Item &key, Item &value) {
   uint32_t flag = 0;
   keyValue(key, value, flag);
 }
+
 void Cursor::first(Item &key, Item &value) {
   key.reset();
   value.reset();

@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 #include <iostream>
+#include <map>
 namespace boltDB_CPP {
 
 /**
@@ -25,12 +26,21 @@ namespace boltDB_CPP {
  * memory spaces at all. But it fits my need for now.
  */
 class MemoryPool {
+  //this is for char arrays
   std::vector<char *> arrays;
-
+  //this is for typed objects
+  //I need to separate this from plain arrays
+  std::map<void *, std::function<void(void *)> > objs;
  public:
   ~MemoryPool() {
     for (auto item : arrays) {
 //      std::cout << "delete " << std::showbase << std::hex << (void *) item << std::endl;
+      //call destructor first if it has one
+      auto iter = objs.find(item);
+      if (iter != objs.end()) {
+        iter->second(item);
+      }
+      //release the memory
       delete[] item;
     }
   }
@@ -47,9 +57,17 @@ class MemoryPool {
   T *allocate(Args &&... args) {
     auto ret = allocateByteArray(sizeof(T));
     new(ret) T(std::forward<Args>(args)...);
+    //register destructors into objs
+
+    auto fn = [](void *pointer) {
+      reinterpret_cast<T *>(pointer)->~T();
+    };
+    objs[ret] = fn;
+
     return reinterpret_cast<T *>(ret);
   }
   void deallocateByteArray(char *ptr) {
+    assert(objs.find(ptr) == objs.end());
     auto iter = std::find(arrays.begin(), arrays.end(), ptr);
     assert(iter != arrays.end());
     delete[] ptr;
@@ -57,6 +75,15 @@ class MemoryPool {
   }
   template<class T>
   void deallocate(T *ptr) {
+    //there should be a destructor
+    auto dtor = objs.find(ptr);
+    assert(dtor != objs.end());
+    //ptr should be in 'arrays'
+    auto iter = std::find(arrays.begin(), arrays.end(), ptr);
+    assert(iter != arrays.end());
+    //call destructor first
+    dtor->second(ptr);
+    //release memory
     char *cptr = reinterpret_cast<char *>(ptr);
     deallocateByteArray(cptr);
   }

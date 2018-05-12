@@ -6,6 +6,7 @@
 #define BOLTDB_IN_CPP_BOLTDB_TYPES_H
 #include <cstdint>
 #include <functional>
+#include <cstring>
 namespace boltDB_CPP {
 
 typedef uint64_t txn_id;
@@ -27,6 +28,12 @@ struct Item {
   void reset();
   bool empty() const;
   Item clone(MemoryPool *pool);
+  static Item make_item(const char *p) {
+    if (p == nullptr || *p == 0) {
+      return {};
+    }
+    return {p, strlen(p)};
+  }
 };
 }  // namespace boltDB_CPP
 
