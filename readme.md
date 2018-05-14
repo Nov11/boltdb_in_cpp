@@ -71,8 +71,13 @@
 * rwmtx, mmaplock, metalock are acquired and released during database shutdown
 
 ### memory management
-* txn maintains a local memory manage in charge of every allocation/deallocation of its own and release all the memory
- on txn destruction which happens when the txn is removed from its database(for ro txn) or txn is reset so that it is not the
+* one txn maintains a local memory manager which is in charge of every allocation/deallocation of the txn's. the memory manager releases all the memory
+ on txn destruction which happens when the txn is removed from its database(for ro txn) or the txn is reset so that it is not the
  current rw txn any more.
-* database object is maintained by user application. typically should be used with a smart pointer. this implementation assume that 
-user takes care of memory re collection for a database object.
+* the database object's memory is maintained by user application. typically should be used with a smart pointer. this implementation assumes that
+users take care of memory recycling of a database object.
+
+### issues with source code
+1. isn't meta page a waste of space? as it only needs a page header and a meta data which will be significantly smaller than a page(4k).
+2. top level bucket of a txn is kind of merely a concept. it will never be returned to user code. it always has at least one sub bucket.
+3. calling

@@ -191,4 +191,15 @@ TEST(dbtest, mmap_update_underlying_file) {
   }
   close(fd);
 }
+
+TEST(dbtest, update_closed) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  auto updateFunc = [](Txn *txn) -> int {
+    auto b = txn->createBucket(Item::make_item("anewbucket"));
+    return b != nullptr;
+  };
+  auto ret = db1->update(updateFunc);
+  EXPECT_EQ(ret, -1);
+}
 }
