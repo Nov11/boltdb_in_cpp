@@ -84,6 +84,10 @@ void Txn::OnCommit(std::function<void()> fn) { commitHandlers.push_back(fn); }
  * txn should succeed on doing commit)
  */
 int Txn::commit() {
+  // txn should not call commit in Update/View
+  if (managed) {
+    return -1;
+  }
   if (db == nullptr || !isWritable()) {
     return -1;
   }

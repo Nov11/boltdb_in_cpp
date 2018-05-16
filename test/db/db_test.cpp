@@ -202,4 +202,14 @@ TEST(dbtest, update_closed) {
   auto ret = db1->update(updateFunc);
   EXPECT_EQ(ret, -1);
 }
+
+TEST(dbtest, commit_managed_txn) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  auto updateFunc = [](Txn *txn) -> int {
+    return txn->commit();
+  };
+  auto ret = db1->update(updateFunc);
+  EXPECT_EQ(ret, -1);
+}
 }
