@@ -80,4 +80,6 @@ users take care of memory recycling of a database object.
 ### issues with source code
 1. isn't meta page a waste of space? as it only needs a page header and a meta data which will be significantly smaller than a page(4k).
 2. top level bucket of a txn is kind of merely a concept. it will never be returned to user code. it always has at least one sub bucket.
-3. calling
+3. calling (i forgot about this. let me leave it here)
+4. memory management. if there is a item copy, from txn to user space, the memory an item points to is invalid when the txn ends. user must
+do additional copy to maintain it. there might be a way to force this kind of copy in compilation in cpp.
