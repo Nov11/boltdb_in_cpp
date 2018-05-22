@@ -212,4 +212,34 @@ TEST(dbtest, commit_managed_txn) {
   auto ret = db1->update(updateFunc);
   EXPECT_EQ(ret, -1);
 }
+
+TEST(dbtest, rollback_managed_txn) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  auto updateFunc = [](Txn *txn) -> int {
+    return txn->rollback();
+  };
+  auto ret = db1->update(updateFunc);
+  EXPECT_EQ(ret, -1);
+}
+
+TEST(dbtest, view_commit_managed_txn) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  auto viewFunc = [](Txn *txn) -> int {
+    return txn->commit();
+  };
+  auto ret = db1->view(viewFunc);
+  EXPECT_EQ(ret, -1);
+}
+
+TEST(dbtest, view_rollback_managed_txn) {
+  auto name = newFileName();
+  std::unique_ptr<DB> db1(new DB);
+  auto viewFunc = [](Txn *txn) -> int {
+    return txn->rollback();
+  };
+  auto ret = db1->view(viewFunc);
+  EXPECT_EQ(ret, -1);
+}
 }

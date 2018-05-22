@@ -78,7 +78,7 @@ class Txn {
   int for_each(std::function<int(const Item &name, Bucket *b)>);
   void OnCommit(std::function<void()> fn);
   int commit();
-  void rollback();
+  int rollback();
 //  void closeTxn();
   int writeMeta();
   int write();

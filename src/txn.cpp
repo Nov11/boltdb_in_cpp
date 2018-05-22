@@ -142,14 +142,18 @@ int Txn::commit() {
 /**
  * this should be move to db class other than placed here
  */
-void Txn::rollback() {
+int Txn::rollback() {
+  if (managed) {
+    return -1;
+  }
   if (db == nullptr) {
-    return;
+    return -1;
   }
   if (isWritable()) {
     db->getFreeLIst().rollback(metaData->txnId);
     db->getFreeLIst().reload(db->pagePointer(metaData->freeListPageNumber));
   }
+  return 0;
 }
 
 int Txn::writeMeta() {
