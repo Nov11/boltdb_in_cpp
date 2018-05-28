@@ -242,4 +242,52 @@ TEST(dbtest, view_rollback_managed_txn) {
   auto ret = db1->view(viewFunc);
   EXPECT_EQ(ret, -1);
 }
+
+TEST_F(TmpFile, dbtest_consistency_test) {
+  auto create = [](Txn *txn) {
+    auto ret = txn->createBucket(Item::make_item("widgets"));
+    return !(ret != nullptr);
+  };
+  EXPECT_EQ(db->update(create), 0);
+
+  auto updateFunc = [](Txn *txn) {
+    return txn->getBucket(Item::make_item("widgets"))->put(Item::make_item("foo"), Item::make_item("bar"));
+  };
+  for (int i = 0; i < 10; i++) {
+    db->update(updateFunc);
+  }
+
+  auto updateRet = db->update([](Txn *txn) -> int {
+    auto p0 = txn->getPage(0);
+    EXPECT_NE(p0, nullptr);
+    EXPECT_EQ(isSet(p0->flag, PageFlag::metaPageFlag), true);
+
+    auto p1 = txn->getPage(1);
+    EXPECT_NE(p1, nullptr);
+    EXPECT_EQ(isSet(p1->flag, PageFlag::metaPageFlag), true);
+
+    auto p2 = txn->getPage(2);
+    EXPECT_NE(p2, nullptr);
+    EXPECT_EQ(isSet(p2->flag, PageFlag::freelistPageFlag), true);
+
+    auto p3 = txn->getPage(3);
+    EXPECT_NE(p3, nullptr);
+    EXPECT_EQ(isSet(p3->flag, PageFlag::freelistPageFlag), true);
+
+    auto p4 = txn->getPage(4);
+    EXPECT_NE(p4, nullptr);
+    EXPECT_EQ(isSet(p4->flag, PageFlag::leafPageFlag), true);
+
+    auto p5 = txn->getPage(5);
+    EXPECT_NE(p5, nullptr);
+    EXPECT_EQ(isSet(p5->flag, PageFlag::freelistPageFlag), true);
+
+    auto p6 = txn->getPage(6);
+    EXPECT_EQ(p6, nullptr);
+
+    return 0;
+  });
+
+  EXPECT_EQ(updateRet, 0);
+}
 }
