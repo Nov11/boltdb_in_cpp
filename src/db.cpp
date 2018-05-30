@@ -596,9 +596,13 @@ page_id FreeList::allocate(size_t sz) {
       init = id;
     }
 
-    if (id - prev == sz + 1) {
+    if (id - init + 1 == sz ) {
       for (size_t j = 0; j < sz; j++) {
-        pageIds[i + 1 - sz] = pageIds[i + 1 + j];
+        pageIds[i + 1 - sz + j] = pageIds[i + 1 + j];
+      }
+
+      for(size_t j = 0; j < sz; j++){
+        pageIds.pop_back();
       }
 
       for (size_t j = 0; j < sz; j++) {
