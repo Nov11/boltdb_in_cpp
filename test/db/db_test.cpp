@@ -257,7 +257,7 @@ TEST_F(TmpFile, dbtest_consistency_test) {
     db->update(updateFunc);
   }
 
-  auto updateRet = db->update([](Txn *txn) -> int {
+  auto updateRet = db->update([this](Txn *txn) -> int {
     auto p0 = txn->getPage(0);
     EXPECT_NE(p0, nullptr);
     EXPECT_EQ(isSet(p0->flag, PageFlag::metaPageFlag), true);
@@ -268,11 +268,11 @@ TEST_F(TmpFile, dbtest_consistency_test) {
 
     auto p2 = txn->getPage(2);
     EXPECT_NE(p2, nullptr);
-    EXPECT_EQ(isSet(p2->flag, PageFlag::freelistPageFlag), true);
+    EXPECT_EQ(db->getFreeLIst().freed(2), true);
 
     auto p3 = txn->getPage(3);
     EXPECT_NE(p3, nullptr);
-    EXPECT_EQ(isSet(p3->flag, PageFlag::freelistPageFlag), true);
+    EXPECT_EQ(db->getFreeLIst().freed(3), true);
 
     auto p4 = txn->getPage(4);
     EXPECT_NE(p4, nullptr);
