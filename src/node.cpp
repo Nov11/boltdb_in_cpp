@@ -30,7 +30,7 @@ void Node::read(boltDB_CPP::Page *page) {
   this->inodeList.resize(page->count);
 
   for (size_t i = 0; i < page->count; i++) {
-    auto item = this->inodeList[i];
+    auto& item = this->inodeList[i];
     if (this->isLeaf) {
       auto element = page->getLeafPageElement(i);
       item.flag = element->flag;
@@ -408,7 +408,7 @@ void Node::rebalance() {
 
   if (parentNode == nullptr) {
     // root node has only one branch, need to collapse it
-    // assign current node to child, and remove chlid node
+    // assign current node to child, and remove child node
     if (!isLeaf && inodeList.size() == 1) {
       auto child = bucket->getNode(inodeList[0].pageId, this);
       isLeaf = child->isLeaf;

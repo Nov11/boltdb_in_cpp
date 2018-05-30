@@ -11,6 +11,9 @@
 namespace boltDB_CPP {
 
 Page *boltDB_CPP::Txn::getPage(page_id pageId) {
+  if (pageId >= metaData->totalPageNumber) {
+    return nullptr;
+  }
   if (!dirtyPageTable.empty()) {
     auto iter = dirtyPageTable.find(pageId);
     if (iter != dirtyPageTable.end()) {
@@ -92,7 +95,7 @@ int Txn::commit() {
     return -1;
   }
 
-  // recursively merge nodes of which numbers of elements are below threshold
+  // recursively merge nodes of which number of elements is below threshold
   rootBucket.rebalance();
   if (rootBucket.spill()) {
     rollback();

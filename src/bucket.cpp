@@ -431,7 +431,7 @@ int Bucket::spill() {
     auto child = item.second;
 
     Item newValue;
-    size_t len = 0;
+
     if (child->isInlineable()) {
       child->free();
       newValue = child->write();

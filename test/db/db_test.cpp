@@ -290,4 +290,8 @@ TEST_F(TmpFile, dbtest_consistency_test) {
 
   EXPECT_EQ(updateRet, 0);
 }
+
+TEST(db_test, leafpageelement_padding_test) {
+
+}
 }
