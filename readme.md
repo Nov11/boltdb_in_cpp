@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/Nov11/boltdb_in_cpp.svg?branch=master)](https://travis-ci.org/Nov11/boltdb_in_cpp)
-[![Coverage Status](https://coveralls.io/repos/github/Nov11/boltdb_in_cpp/badge.svg?branch=master)](https://coveralls.io/github/Nov11/boltdb_in_cpp?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/Nov11/boltdb_in_cpp/badge.svg?branch=master&service=github)](https://coveralls.io/github/Nov11/boltdb_in_cpp?branch=master)
 ### A C++ implementation of [BoltDB](https://github.com/boltdb/bolt)
 * under-construction
 * based on version tagged 1.3.1
