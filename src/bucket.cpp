@@ -330,7 +330,7 @@ Item Bucket::get(const Item &key) {
   uint32_t flag = 0;
   createCursor()->seek(key, k, v, flag);
   if (isSet(flag, PageFlag::bucketLeafFlag) || k != key) {
-    return Item();
+    return {};
   }
   return v;
 }
